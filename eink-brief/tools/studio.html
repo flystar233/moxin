@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>出图</title>
+<!-- 展示页的 3D 出图：用设计笔记的 3D 视图（eink-docs/assets/board3d.js）按 #后面的 JSON 摆好机位，Edge 无头截图，背景透明。
+     用法见 tools/shoot.js；JSON 字段：th / ph / r（相机方位、天顶角、距离）、look（看向的板子坐标 x、高度、y）、fov、shell（off / ghost / solid）、explode（0～1）、layers -->
+<style>
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { width: 100% !important; height: 100% !important; display: block; }
+  .v-msg, .v-labels, .v-tip, .v-top, .v-hint, .v-ctrl, .v-info { display: none !important; }
+  body > *:not(#stage):not(script) { display: none !important; }
+</style>
+<script>
+  try { window.STUDIO = JSON.parse(decodeURIComponent(location.hash.slice(1))); } catch (e) { window.STUDIO = {}; }
+</script>
+</head>
+<body data-sheet="layout">
+<div id="stage">
+  <div class="v-msg"></div><div class="v-labels" id="vLabels"></div><div class="v-tip" id="vTip" hidden></div>
+  <div class="v-top"><div class="seg" id="viewSeg"><button type="button" data-v="iso" aria-pressed="true">iso</button></div></div>
+</div>
+<div class="v-ctrl">
+  <input type="range" id="explode" min="0" max="100" value="0"><output id="explodeO"></output>
+  <span class="seg" id="shellSeg"><button type="button" data-v="off">off</button><button type="button" data-v="ghost" aria-pressed="true">ghost</button><button type="button" data-v="solid">solid</button></span>
+  <button type="button" id="autoBtn" aria-pressed="false">auto</button>
+</div>
+<aside class="v-info" id="vInfo"></aside>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="../../eink-docs/assets/data.js"></script>
+<script src="../../eink-docs/assets/app.js"></script>
+<script src="../../eink-docs/assets/board-data.js"></script>
+<script src="../../eink-docs/assets/board3d.js"></script>
+</body>
+</html>

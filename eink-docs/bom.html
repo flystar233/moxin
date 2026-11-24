@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>器件清单 · 墨水屏监控器设计笔记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .sum { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); overflow: hidden; }
+  .sum a { display: block; padding: 10px 14px; box-shadow: 1px 0 0 var(--rule-2), 0 1px 0 var(--rule-2); color: inherit; text-decoration: none; }
+  .sum a:hover { background: var(--mask-soft); }
+  .sum .k { font-size: var(--fs-xs); color: var(--ink-3); }
+  .sum .v { font-family: var(--f-mono); font-size: 1.3rem; }
+  .sum .v small { font-size: .72rem; color: var(--ink-3); margin-left: 4px; }
+  .sum .tot { background: var(--sunk); }
+
+  .catmeta { font-family: var(--f-body); font-size: var(--fs-sm); font-weight: 400; color: var(--ink-3); margin-left: 10px; }
+  .bomc { width: 100%; min-width: 640px; table-layout: fixed; }
+  .bomc col.c-val { width: 24%; } .bomc col.c-pkg { width: 17%; } .bomc col.c-qty { width: 7%; } .bomc col.c-ref { width: 26%; }
+  .bomc td { vertical-align: top; }
+  .bomc .val { font-family: var(--f-mono); font-weight: 500; font-size: .9rem; }
+  .bomc .pkg { font-size: .86rem; color: var(--ink-2); }
+  .bomc .qty { font-family: var(--f-mono); text-align: right; font-weight: 600; }
+  .bomc .use { font-size: .9rem; }
+  .refs { display: flex; flex-wrap: wrap; gap: 3px; }
+  .refs span { font-family: var(--f-mono); font-size: .76rem; font-weight: 500; color: var(--mask); background: var(--mask-soft); border-radius: 3px; padding: 0 5px; scroll-margin-top: calc(var(--bar-h) + 80px); }
+  .refs span.nw { background: var(--mask); color: var(--on-mask); }
+  .refs span:target { background: var(--copper); color: var(--paper); }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: color-mix(in srgb, var(--mask-soft) 45%, transparent); }
+  tr.row .tw { display: inline-block; width: 1em; color: var(--ink-3); font-size: .75rem; transition: transform .15s; }
+  tr.row.open .tw { transform: rotate(90deg); }
+  tr.det td { background: var(--paper); font-size: .86rem; color: var(--ink-2); padding-top: 4px; }
+  tr.det[hidden] { display: none; }
+  .det ul { margin: 0; padding-left: 1.1em; }
+  .det li { margin: 3px 0; }
+  .det b { color: var(--ink); font-weight: 600; }
+  .det a { font-size: .82rem; margin-left: 6px; }
+  .tag.new { color: var(--mask); border-color: color-mix(in srgb, var(--mask) 55%, transparent); background: var(--mask-soft); }
+  .count { font-size: var(--fs-sm); color: var(--ink-3); }
+  .sec[hidden] { display: none; }
+</style>
+</head>
+<body data-sheet="bom">
+<header class="bar"><div class="wrap"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">墨水屏监控器 · 阅读器</span></a><nav class="tabs" aria-label="图纸"><a href="index.html"><span class="n">01</span>首页</a><a href="overview.html"><span class="n">02</span>概览</a><a href="review.html"><span class="n">03</span>评审</a><a href="budget.html"><span class="n">04</span>功耗与续航</a><a href="power.html"><span class="n">05</span>供电与充电</a><a href="display.html"><span class="n">06</span>墨水屏</a><a href="peripherals.html"><span class="n">07</span>主控与外设</a><a href="pins.html"><span class="n">08</span>引脚</a><a href="schematic.html"><span class="n">09</span>原理图</a><a href="layout.html"><span class="n">10</span>PCB 布局</a><a href="firmware.html"><span class="n">11</span>固件与通信</a><a href="bom.html" aria-current="page"><span class="n">12</span>器件清单</a><a href="bringup.html"><span class="n">13</span>打样验收</a></nav><button class="theme-btn" type="button" id="themeBtn" aria-label="切换主题">主题：跟随系统</button></div><div class="bar-prog" aria-hidden="true"></div></header>
+<script>(function(){var t=document.querySelector('.tabs'),c=t&&t.querySelector('[aria-current]');if(c){var o=c.offsetLeft-t.offsetLeft+c.offsetWidth-t.clientWidth;if(o>0)t.scrollLeft=o+40;}try{var v=JSON.parse(localStorage.getItem('eink.theme')),L={light:'浅色',dark:'深色'};if(L[v])document.getElementById('themeBtn').textContent='主题：'+L[v];}catch(e){}})();</script>
+<div class="wrap">
+  <header class="sheet-head"><div class="sh-text">
+    <p class="eyebrow">图纸 <b>12</b> / 13 · v4.45 · PCB 已打样（PCB1 2026-11-06）· 外壳 v1</p>
+    <h1>器件清单</h1>
+    <p class="lede">按元件类别列出全部器件，同一型号、同一封装合并成一行，下单和贴片时直接对着用。点击一行展开设计说明和相关章节。带"新增"标记的是近几版加的器件（一行里只有部分位号是新加的，那几个位号用深绿色标出），带"待核实"标记的取值要对照规格书确认。封装为建议值，价格和库存以立创商城为准。</p>
+    <div class="head-chips"><a class="sev doc" href="#list" data-f="F12" style="text-decoration:none">F12 文档修正</a></div>
+  </div><aside class="sh-card" aria-label="本页概况"><div class="sh-no">12</div><dl class="sh-stats"><div><dt>章节</dt><dd>12</dd></div><div><dt>评审项</dt><dd>1</dd></div><div><dt>表格</dt><dd>11</dd></div></dl><div class="sh-prog" data-f="F12"><span>本页评审已处理<b>0 / 1</b></span><div class="sh-bar" aria-hidden="true"></div></div></aside></header>
+
+  <div class="body">
+    <div class="main wide" style="max-width:64rem">
+      <section class="sec" id="summary">
+        <h2><span class="n">12.1</span>汇总</h2>
+        <div class="sum" id="sum"></div>
+        <div class="toolbar" style="margin-top:16px">
+          <label class="visually-hidden" for="q">搜索器件</label>
+          <input class="search" id="q" type="search" placeholder="搜索位号、型号、封装、用途，如 R21、10k、0603、TVS">
+          <label class="chk"><input type="checkbox" id="openAll"> 展开全部说明</label>
+          <span style="flex:1"></span>
+          <button class="btn" type="button" id="csvBtn">复制为 CSV（嘉立创 BOM 格式）</button>
+        </div>
+        <div id="csvHost" class="copybox"></div>
+        <p class="count" id="count"></p>
+      </section>
+      <section class="sec" id="cat-ic">
+        <h2><span class="n">12.2</span>IC 与模组<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-res">
+        <h2><span class="n">12.3</span>电阻<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-cap">
+        <h2><span class="n">12.4</span>电容<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-ind">
+        <h2><span class="n">12.5</span>电感与磁珠<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-dio">
+        <h2><span class="n">12.6</span>二极管与 LED<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-fet">
+        <h2><span class="n">12.7</span>晶体管<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-xtal">
+        <h2><span class="n">12.8</span>晶振<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-conn">
+        <h2><span class="n">12.9</span>连接器<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-sw">
+        <h2><span class="n">12.10</span>开关与按键<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-misc">
+        <h2><span class="n">12.11</span>电池、喇叭与结构件<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+      <section class="sec" id="cat-tp">
+        <h2><span class="n">12.12</span>测试点<span class="catmeta"></span></h2>
+        <div class="tbl-wrap"><table class="bomc"><colgroup><col class="c-val"><col class="c-pkg"><col class="c-qty"><col class="c-ref"><col></colgroup>
+          <thead><tr><th>型号 / 值</th><th>封装</th><th class="r">数量</th><th>位号</th><th>用途</th></tr></thead><tbody></tbody></table></div>
+      </section>
+    </div>
+    <aside class="rail" aria-label="本页导航" data-static><div class="toc-box"><h4>本页</h4><ol class="toc"><li><a href="#summary"><span class="n">12.1</span>汇总</a></li><li><a href="#cat-ic"><span class="n">12.2</span>IC 与模组</a></li><li><a href="#cat-res"><span class="n">12.3</span>电阻</a></li><li><a href="#cat-cap"><span class="n">12.4</span>电容</a></li><li><a href="#cat-ind"><span class="n">12.5</span>电感与磁珠</a></li><li><a href="#cat-dio"><span class="n">12.6</span>二极管与 LED</a></li><li><a href="#cat-fet"><span class="n">12.7</span>晶体管</a></li><li><a href="#cat-xtal"><span class="n">12.8</span>晶振</a></li><li><a href="#cat-conn"><span class="n">12.9</span>连接器</a></li><li><a href="#cat-sw"><span class="n">12.10</span>开关与按键</a></li><li><a href="#cat-misc"><span class="n">12.11</span>电池、喇叭与结构件</a></li><li><a href="#cat-tp"><span class="n">12.12</span>测试点</a></li></ol></div><div><h4>本页评审项</h4><div class="rail-findings"><a href="review.html#F12" data-f="F12"><span class="sev doc">F12</span><span>原器件清单缺被动件<span class="muted st"></span></span></a></div></div></aside>
+  </div>
+  <div class="titleblock-wrap" data-auto-foot></div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(() => {
+  const { D, el } = APP;
+  const $ = id => document.getElementById(id);
+
+  /* ---------- 类别：按位号前缀 ---------- */
+  const CATS = [
+    { id: 'ic',   t: 'IC 与模组',       m: /^U\d/ },
+    { id: 'res',  t: '电阻',            m: /^R\d/ },
+    { id: 'cap',  t: '电容',            m: /^C\d/ },
+    { id: 'ind',  t: '电感与磁珠',      m: /^(L\d|FB)/ },
+    { id: 'dio',  t: '二极管与 LED',    m: /^(D\d|LED)/ },
+    { id: 'fet',  t: '晶体管',          m: /^Q\d/ },
+    { id: 'xtal', t: '晶振',            m: /^(Y|X)\d/ },
+    { id: 'conn', t: '连接器',          m: /^(J\d|FPC|USB|CARD|H\d)/ },
+    { id: 'sw',   t: '开关与按键',      m: /^(SW|S$)/ },
+    { id: 'misc', t: '电池、喇叭与结构件', m: /^(BT|LS|ST|KC|MH)/ },
+    { id: 'tp',   t: '测试点',          m: /^TP/ }
+  ];
+  // EDA 原理图里有几颗器件的位号前缀和类别对不上（连接器、钽电容、MOS 管都用了 U）
+  const BY_REF = { U3: 'conn', H4: 'conn', Q1: 'fet', U13: 'fet', U14: 'fet' };
+  const catOf = ref => CATS.find(c => c.id === BY_REF[ref]) || CATS.find(c => c.m.test(ref)) || CATS[CATS.length - 2];
+
+  /* ---------- 把清单拆到每个位号，再按"类别 + 型号 + 封装"合并 ---------- */
+  const splitN = (s, n) => { const a = String(s).split(/[,，]\s*/); return a.length === n ? a : Array(n).fill(s); };
+  const normVal = v => v.trim().replace(/^0\.1µF/, '100nF');
+  const items = [];
+  D.bom.forEach(b => {
+    const vals = splitN(b.part, b.refs.length), pkgs = splitN(b.pkg, b.refs.length);
+    b.refs.forEach((r, i) => items.push({ ref: r, cat: catOf(r), val: normVal(vals[i]), pkg: pkgs[i].trim(), src: b }));
+  });
+  const num = r => { const m = r.match(/^([A-Z]+)(\d+)/); return m ? [m[1], +m[2]] : [r, 0]; };
+  const byRef = (a, b) => { const [pa, na] = num(a), [pb, nb] = num(b); return pa === pb ? na - nb : pa < pb ? -1 : 1; };
+  const UNIT = { 'Ω': 1, k: 1e3, M: 1e6, pF: 1e-12, nF: 1e-9, 'µF': 1e-6, uF: 1e-6 };
+  const mag = v => { const m = v.match(/^([\d.]+)\s*(Ω|k|M|pF|nF|µF|uF)/); return m ? +m[1] * UNIT[m[2]] : Infinity; };
+
+  const rows = new Map();
+  items.forEach(it => {
+    const key = it.cat.id + '|' + it.val + '|' + it.pkg;
+    if (!rows.has(key)) rows.set(key, { cat: it.cat, val: it.val, pkg: it.pkg, refs: [], srcs: new Set() });
+    const r = rows.get(key); r.refs.push(it.ref); r.srcs.add(it.src);
+  });
+  const all = [...rows.values()];
+  all.forEach(r => {
+    r.refs.sort(byRef);
+    r.srcs = [...r.srcs];
+    r.use = [...new Set(r.srcs.map(s => s.fn))].join('、');
+    const isNewRef = x => (r.srcs.find(s => s.refs.includes(x)).flags || []).includes('new');
+    r.newRefs = new Set(r.refs.filter(isNewRef));
+    r.isNew = r.newRefs.size === r.refs.length;
+    r.verify = r.srcs.some(s => (s.flags || []).includes('verify'));
+    r.hay = [r.refs.join(' '), r.val, r.pkg, r.use, r.srcs.map(s => s.note + ' ' + s.g).join(' ')].join(' ').toLowerCase();
+  });
+  const sortRows = (a, b) => {
+    if (a.cat.id === 'res' || a.cat.id === 'cap') { const d = mag(a.val) - mag(b.val); if (d) return d; return a.pkg < b.pkg ? -1 : a.pkg > b.pkg ? 1 : 0; }
+    return byRef(a.refs[0], b.refs[0]);
+  };
+
+  /* ---------- 汇总 ---------- */
+  const totalRefs = items.length;
+  $('sum').append(...CATS.map(c => {
+    const rs = all.filter(r => r.cat === c), n = rs.reduce((a, r) => a + r.refs.length, 0);
+    return el('a', { href: '#cat-' + c.id }, el('div', { class: 'k', text: c.t }), el('div', { class: 'v' }, String(n), el('small', { text: rs.length + ' 种' })));
+  }), el('a', { class: 'tot', href: '#summary' }, el('div', { class: 'k', text: '合计' }), el('div', { class: 'v' }, String(totalRefs), el('small', { text: all.length + ' 种' }))));
+
+  /* ---------- 每个类别一节 ---------- */
+  const host = document.querySelector('.main');
+  const secs = CATS.map(c => {
+    const list = all.filter(r => r.cat === c).sort(sortRows);
+    const sec = $('cat-' + c.id), meta = sec.querySelector('.catmeta'), tbody = sec.querySelector('tbody');
+    list.forEach(r => {
+      const tr = el('tr', { class: 'row' + (r.isNew ? ' is-new' : ''), tabindex: '0', 'aria-expanded': 'false' },
+        el('td', null, el('span', { class: 'tw', text: '▸' }), el('span', { class: 'val', text: r.val }),
+          r.newRefs.size ? el('span', { class: 'tag new', text: r.isNew ? '新增' : '含新增' }) : null, r.verify ? el('span', { class: 'tag verify', text: '待核实' }) : null),
+        el('td', { class: 'pkg', text: r.pkg }),
+        el('td', { class: 'qty', text: String(r.refs.length) }),
+        el('td', null, el('div', { class: 'refs' }, r.refs.map(x => el('span', { id: 'ref-' + x, class: r.newRefs.has(x) && !r.isNew ? 'nw' : null, title: r.newRefs.has(x) ? '新增' : null, text: x })))),
+        el('td', { class: 'use', text: r.use }));
+      const det = el('tr', { class: 'det', hidden: '' }, el('td', { colspan: 5 }, el('ul', null, r.srcs.map(s => el('li', null,
+        el('b', { text: s.refs.filter(x => r.refs.includes(x)).join('、') + ' · ' + s.fn }),
+        s.note ? '：' + s.note : '',
+        ...(s.f || []).map(f => el('a', { class: 'fx', text: f })),
+        s.sheet ? el('a', { href: APP.sheetFile(s.sheet) + (s.anchor ? '#' + s.anchor : ''), text: '所在章节 →' }) : null)))));
+      const toggle = (open) => { const o = open == null ? det.hidden : open; det.hidden = !o; tr.classList.toggle('open', o); tr.setAttribute('aria-expanded', String(o)); };
+      tr.addEventListener('click', e => { if (e.target.closest('a')) return; toggle(); });
+      tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+      r.tr = tr; r.det = det; r.toggle = toggle;
+      tbody.append(tr, det);
+    });
+    return { c, sec, meta, list };
+  });
+
+  /* ---------- 搜索、展开 ---------- */
+  let q = '';
+  function render() {
+    const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+    let nRows = 0, nRefs = 0;
+    secs.forEach(({ sec, meta, list }) => {
+      let rr = 0, rf = 0;
+      list.forEach(r => {
+        const ok = terms.every(t => r.hay.includes(t));
+        r.tr.hidden = !ok; if (!ok) r.det.hidden = true; else if (r.tr.classList.contains('open')) r.det.hidden = false;
+        if (ok) { rr++; rf += r.refs.length; }
+      });
+      sec.hidden = rr === 0;
+      meta.textContent = `${rr} 种 · ${rf} 个`;
+      nRows += rr; nRefs += rf;
+    });
+    $('count').textContent = q ? `找到 ${nRows} 种、${nRefs} 个器件` : `共 ${nRows} 种、${nRefs} 个器件，分 ${CATS.length} 类`;
+  }
+  $('q').addEventListener('input', e => { q = e.target.value.trim(); render(); });
+  $('openAll').addEventListener('change', e => { all.forEach(r => { if (!r.tr.hidden) r.toggle(e.target.checked); }); });
+
+  $('csvBtn').addEventListener('click', () => {
+    const esc = s => /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    const out = [['Comment', 'Designator', 'Footprint', 'Quantity', '类别', '用途']];
+    secs.forEach(({ c, list }) => list.filter(r => !r.tr.hidden).forEach(r => out.push([r.val, r.refs.join(','), r.pkg, String(r.refs.length), c.t, r.use])));
+    APP.copyText(out.map(r => r.map(esc).join(',')).join('\n'), $('csvHost'), 'CSV 已复制');
+  });
+  render();
+  APP.enhance(host);
+
+  /* ---------- 从其他页面跳过来：#ref-R21 ---------- */
+  function focusHash() {
+    const id = decodeURIComponent(location.hash.slice(1));
+    if (!id.startsWith('ref-')) return;
+    if (q) { q = ''; $('q').value = ''; render(); }
+    const t = document.getElementById(id);
+    if (!t) return;
+    const r = all.find(x => x.refs.includes(id.slice(4)));
+    if (r) r.toggle(true);
+    const tr = t.closest('tr');
+    tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+    t.scrollIntoView({ block: 'center' });
+  }
+  window.addEventListener('hashchange', focusHash);
+  setTimeout(focusHash, 60);
+})();
+</script>
+</body>
+</html>

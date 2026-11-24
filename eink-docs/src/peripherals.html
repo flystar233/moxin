@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>主控与外设 · 墨水屏监控器设计笔记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .orient { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .orient > * { min-width: 0; }
+  .ostage { padding: 10px; border-right: 1px solid var(--rule-2); display: grid; place-items: center; }
+  .ostage svg { width: 100%; max-width: 360px; height: auto; }
+  .ostage .dev { fill: #2A2B28; stroke: var(--rule); stroke-width: 1; }
+  .ostage .scr { fill: #EDEDE8; }
+  .ostage .key { fill: var(--copper); }
+  .ostage .ant { fill: var(--crit); opacity: .85; }
+  .ostage text { font-family: var(--f-mono); font-size: 11px; fill: var(--ink); }
+  .ostage text.s { fill: var(--ink-3); font-size: 10px; }
+  .ostage text.scrt { fill: #222; font-family: var(--f-body); font-size: 12px; }
+  .ostage .grav { stroke: var(--mask); stroke-width: 2.5; fill: none; }
+  .ostage .gravh { fill: var(--mask); }
+  @media (prefers-reduced-motion: no-preference) { .ostage svg g.devg { transition: transform .4s ease; } }
+  .keymap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; font-size: .92rem; }
+  .keymap dt { font-family: var(--f-mono); color: var(--copper); font-weight: 600; }
+  .keymap dd { margin: 0; }
+  @media (max-width: 720px) { .orient { grid-template-columns: minmax(0, 1fr); } .ostage { border-right: 0; border-bottom: 1px solid var(--rule-2); } }
+</style>
+</head>
+<body data-sheet="peripherals">
+<div class="wrap">
+  <header class="sheet-head">
+    <p class="eyebrow" data-auto></p>
+    <h1>主控与外设</h1>
+    <p class="lede">ESP32-S3 模组外围几个必不可少的小电路，挂在同一条 I2C 总线上的时钟、CO2 和姿态传感器，以及负责朗读和提示音的 I2S 功放。</p>
+    <div class="head-chips" data-auto></div>
+  </header>
+
+  <div class="body">
+    <div class="main">
+
+      <section class="sec" id="mcu">
+        <h2>主控外围</h2>
+        <p>模组 <a class="ref">U2</a> 之外，下面几个小电路漏掉任何一个，都可能导致无法启动或难以调试。</p>
+        <ul class="plain">
+          <li><strong>EN 复位</strong>：EN 经 <a class="ref">R27</a> 10k 上拉到 3.3V，再经 <a class="ref">C32</a> 1µF 到 GND，时间常数 10ms。上电时电容让 EN 晚于 3.3V 升起，保证电源稳定后才启动。缺少它是 ESP32 上电偶尔不启动的常见原因。RST 键 <a class="ref">RESET</a> 接在 EN 和 GND 之间。C32 紧靠 EN 脚放（地端就近打过孔；EDA 里离 EN 脚约 4mm，排在 3V3 去耦 C6、C5 外侧，v4.41），兼作 EN 脚的去耦：RESET 键到 EN 的线约 23mm，长线上感应的干扰先被 C32 吸收，不另加 100nF（v4.39）；按 RESET 时 C32 经按键放电，复位照常。</li>
+          <li><strong>BOOT 键</strong>：GPIO0 经 <a class="ref">BOOT</a> 接 GND。模组内部有约 45k 的弱上拉，另加 <a class="ref">R26</a> 10k 上拉到 3V3：GPIO0 是 strapping 脚，上电瞬间被干扰拉低就会进下载模式，外加上拉更稳；平时不耗电，按着 BOOT 时约 0.33mA。原生 USB 一般能自动进下载模式；固件卡死时按住 BOOT 再按一下 RST。</li>
+          <li><strong>电源去耦</strong>：3V3 引脚旁放 <a class="ref">C5</a> 22µF + <a class="ref">C6</a> 0.1µF，0.1µF 离引脚最近；底部 GND 焊盘多打过孔，兼顾散热。这组电容与 LDO 输出端的 C10 分开放，专门应对 Wi-Fi 发射的瞬时大电流。</li>
+          <li><strong>调试接口</strong>：UART0 的 RX（GPIO44）、TX（GPIO43）引出为两个贴片焊盘 <a class="ref">H3</a>，在 FPC1 上方，GND 就近夹任意地。接 USB 转串口就能看开机日志和崩溃信息；原生 USB 起不来时，这是唯一能看日志的通道，也能按住 BOOT 再按 RST 走串口烧录。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="strap">
+        <h2>Strapping 引脚</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>GPIO</th><th>上电时的作用</th><th>本设计</th></tr></thead>
+            <tbody>
+              <tr><td class="m">0</td><td>低电平进入下载模式</td><td>BOOT 接地；R26 10k 外部上拉（另有内部弱上拉）</td></tr>
+              <tr><td class="m">3</td><td>JTAG 信号源选择（默认 eFuse 下不起作用）</td><td>不接（v4.29 去掉麦克风后空出）</td></tr>
+              <tr class="is-bad"><td class="m">45</td><td>VDD_SPI 电压选择。<strong>必须为低</strong>，否则 Flash/PSRAM 按 1.8V 供电，模组起不来</td><td>不接，靠内部下拉</td></tr>
+              <tr><td class="m">46</td><td>下载模式时必须为低；同时控制 ROM 启动日志</td><td>不接，靠内部下拉</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>这四个脚都不要接会在上电瞬间改变电平的外设 <span class="tag verify">待核实</span>。完整分配见引脚页。</p>
+        <h3>原生 USB 的两个坑</h3>
+        <ul class="plain">
+          <li><strong>深睡时 USB 会断开。</strong>设备大部分时间在深睡，电脑上的串口会反复消失，自动下载也连不上。烧录前按住 BOOT 再按 RST；或让固件在插着 USB 时不进深睡（正好用上 <a class="fx">F4</a> 的 USB 检测）。</li>
+          <li><strong>USB 模式别选错。</strong>Arduino 里 USB Mode 选 "Hardware CDC and JTAG" 时自动下载有效；改成 "USB-OTG (TinyUSB)" 后自动复位会失效，只能手按 <span class="tag verify">待核实</span>。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="i2c">
+        <h2>I2C 总线</h2>
+        <p><a class="ref">U6</a>、<a class="ref">U7</a>、<a class="ref">U8</a> 和 v1.1 加的电量计 <a class="ref">U10</a> 共用一条总线，地址不冲突。U7 的温湿度补偿传感器 <a class="ref">U11</a>（0x44）接在 U7 自己的 I2C 主口上，不在这条总线上。整条总线只需一组上拉：<a class="ref">R5</a>、<a class="ref">R4</a> 各 4.7k 到 3.3V。用现成模块调试时注意模块可能自带上拉。</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>器件</th><th>位号</th><th>地址</th><th>上电后先读什么</th></tr></thead>
+            <tbody>
+              <tr><td>PCF8563</td><td><a class="ref">U6</a></td><td class="m">0x51</td><td>秒寄存器 0x02 的 VL 位</td></tr>
+              <tr class="is-new"><td>STCC4</td><td><a class="ref">U7</a></td><td class="m">0x64</td><td>先发地址写 + 0x00 唤醒，再读产品 ID（0x365B）= 0x0901018A</td></tr>
+              <tr><td>SC7A20H</td><td><a class="ref">U8</a></td><td class="m">0x19</td><td>WHO_AM_I（0x0F）= 0x11</td></tr>
+              <tr class="is-new"><td>CW2015</td><td><a class="ref">U10</a></td><td class="m">0x62</td><td>先写 MODE（0x0A）= 0x00 唤醒，再读 CONFIG（0x08）的 UFG 位；细节见供电页</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><b>计算器 · I2C 上升时间</b><span><span class="tag calc">计算</span></span></div>
+          <div class="panel-body">
+            <div class="controls">
+              <div class="ctl"><span class="ctl-top">上拉电阻</span>
+                <div class="seg" id="rpuSeg"><button type="button" data-v="2.2">2.2k</button><button type="button" data-v="3.3">3.3k</button><button type="button" data-v="4.7" aria-pressed="true">4.7k</button><button type="button" data-v="10">10k</button></div></div>
+              <div class="ctl"><div class="ctl-top"><label for="cb">总线电容</label><output id="cbO"></output></div><input type="range" id="cb" min="10" max="250" step="5" value="50"></div>
+              <p class="muted" style="margin:0;font-size:.85rem">t<sub>r</sub> ≈ 0.85 × R × C。4 个器件加走线约 50pF；接上外部模块和长线会到 100pF 以上。</p>
+            </div>
+            <div class="readouts">
+              <div class="ro-row">
+                <div class="ro"><span class="ro-label">上升时间</span><span class="ro-value" id="tr"></span></div>
+                <div class="ro"><span class="ro-label">低电平灌电流</span><span class="ro-value" id="isink"></span></div>
+              </div>
+              <div class="verdict ok" id="i2cV"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="rtc">
+        <h2>时钟 <a class="ref">U6</a> PCF8563</h2>
+        <ul class="plain">
+          <li>两个作用：断电保持走时；深睡时按闹钟唤醒 ESP32。ESP32 内部 RTC 睡眠期间漂移较大，不适合长期计时。</li>
+          <li>INT 为开漏输出，和电量计 <a class="ref">U10</a> 的 ALRT 线与，共用 <a class="ref">R3</a> 10k 上拉，接 GPIO16（RTC_INT）。</li>
+          <li><a class="ref">X1</a> 32.768kHz，负载电容按晶振规格书，常见 12.5pF。</li>
+          <li>不加纽扣电池，VDD 直接接电池 VBAT（v4.27，原来接 3.3V，长按关机后会丢时间）：关机期间照样走时，约 0.25µA；只有拔电池或电池耗尽才丢时间，开机读秒寄存器的 VL 位判断，VL = 1 就显示"未对时"，等和电脑端通信时再对时。I2C 和 INT 的上拉仍接 3.3V：高电平门限 0.7 × VDD，电池 4.2V 时约 2.94V，3.3V 能识别；电池低于 3.3V 时高电平略高于 VDD，在 VDD + 0.5V 的输入耐压以内。</li>
+        </ul>
+        <p><strong>固件要做的三件事</strong> <span class="tag verify">待核实</span></p>
+        <ol class="plain">
+          <li><strong>开机读 VL 位</strong>（寄存器 0x02 的 bit7）。为 1 表示掉过电，时间不可信，先向电脑端取时间。</li>
+          <li><strong>关掉 CLKOUT</strong>（寄存器 0x0D 的 FE 位清零）。芯片上电默认输出 32.768kHz 方波，白白耗电。</li>
+          <li><strong>睡前清 TF/AF 标志</strong>（寄存器 0x01）。不清的话 INT 一直为低，ESP32 刚睡下就被唤醒（<a class="fx">F6</a>）。</li>
+        </ol>
+      </section>
+
+      <section class="sec" id="co2">
+        <h2>CO2 <a class="ref">U7</a> STCC4 + 温湿度 <a class="ref">U11</a> SHT40</h2>
+        <p>v4.29 由 AHT20 换成 Sensirion STCC4。放在桌上时显示室内 CO2 浓度，超过约 1000ppm 提醒开窗，比单显示室温、湿度有用。STCC4 是热导原理，4 × 3 × 1.17mm 的 LGA 金属壳贴片，在 4mm 限高内；SCD41 这类光声传感器高 6.5mm 放不下，地址 0x62 还和电量计 <a class="ref">U10</a> 冲突。STCC4 要靠一颗 SHT4x 做温湿度补偿，SHT40 接在 STCC4 自带的一组 I2C 主口上，温度、湿度也从 STCC4 一起读出，AHT20 原来的功能没有丢。</p>
+        <ul class="plain">
+          <li><strong>U7 接法</strong>：1 SCL、5 SDA 接主 I2C 总线；7 VDD、6 VDDIO 都接 3V3（VDDIO 决定 I2C 电平，上电时必须已经有电，和 VDD 接同一路最省事）；3 ADDR 接地，地址 0x64；4 VSS 接地；2 SDA_C、8 SCL_C 直接连 U11。VDD 旁放 <a class="ref">C18</a> 100nF。规格书的引脚图是透视顶视图，画封装时注意 1 脚在倒角那一角。</li>
+          <li><strong>U11 接法</strong>：SHT40-AD1B-R3（嘉立创 C2848306），地址必须是 0x44，STCC4 只会去找这个地址，别买成 0x45 的 BD1B。1 SDA、2 SCL、3 VDD、4 VSS，中间焊盘接地或悬空；VDD 接 3V3，旁边放 <a class="ref">C40</a> 100nF。SDA_C、SCL_C 在 STCC4 内部有 10k 上拉，两颗挨着放时不要再加外部上拉。U11 不挂主总线，主控扫描看不到它。</li>
+          <li><strong>位置</strong>：两颗都放在原 AHT20 的隔热岛上，U11 离 U7 2～5mm，感受同一处空气和温度。隔热岛、L 形槽、L2/L3 挖空都保留，过桥仍是 3V3、GND、SCL、SDA 四根细线；远离 <a class="ref">U1</a>（充电时最高约 1W）、<a class="ref">U2</a> 和 <a class="ref">U4</a>。后盖的通风槽对准两颗器件。STCC4 顶上有一层透气膜，不能撕、不能贴胶带、不能喷三防漆、不能沾液体。</li>
+          <li><strong>通风</strong>：放支架时背面靠着支架，通风槽会被挡一部分。CO2 变化以分钟计，扩散慢一点问题不大，但槽和支架之间最好留 1mm 以上空隙。打样时对比放支架和平放时开窗后读数下降的快慢。</li>
+          <li><strong>功耗</strong>：用单次测量模式。睡眠 1µA，空闲 55µA，一次测量 500ms、峰值 4.2mA；每 10 秒测一次平均约 100µA，桌面模式每 60 秒测一次约 17µA，只占拉取数据平均电流（约 2.5mA）的百分之一左右。深睡期间 U7 留在睡眠模式、不断电，自校准状态不丢。</li>
+          <li><strong>精度</strong>：400～5000ppm 范围内 ±(100ppm + 读数的 10%)，推荐工作温度 10～40°C、湿度 20～80%。拿在手里会受呼气和体温影响，只在桌面模式更新；从阅读切回桌面后，前几次读数先不显示。</li>
+          <li><strong>生产</strong>：STCC4 立创商城没有货，从 DigiKey 等渠道外购（2025 年 10 月单颗约 ¥83，库存不多时交期 16 周）。嘉立创贴片时 U7 留空，回来用加热台或热风枪最后焊（峰值 260°C，不超过 30 秒）；焊后不能水洗、超声清洗，助焊剂不能流到透气膜上。U11 可以让嘉立创贴，同样不要水洗，焊后湿度读数可能偏差，室内放一两天自行恢复。</li>
+        </ul>
+        <p>读取流程（单次测量，地址 0x64）：发地址写 + 一个字节 <code>0x00</code> 唤醒（这个字节没有应答，是正常的），等 5ms；发 <code>0x219D</code> 触发测量，等 500ms；发 <code>0xEC05</code> 读 12 字节，依次是 CO2、温度、湿度、状态，各 2 字节加 1 字节 CRC；发 <code>0x3650</code> 进睡眠。</p>
+<pre class="calc">CO2 = 读数（有符号 16 位，单位 ppm）
+温度 T  = 175 × S_T  / 65535 − 45 °C
+湿度 RH = 125 × S_RH / 65535 − 6 %
+<span class="dim">CRC-8：多项式 0x31，初值 0xFF，例 CRC(0xBEEF) = 0x92</span></pre>
+        <ul class="plain">
+          <li>两次测量间隔保持在 5 秒到 10 分钟之间，自校准才正常。自校准假设每周至少有一次接触到约 400ppm 的新鲜空气，房间要定期开窗。</li>
+          <li>超过 3 小时没测（整晚深睡、长时间看书）后，先发 <code>0x29BC</code> 预处理，它要跑 22 秒，发完 ESP32 就可以去睡，下次醒来再测；不做的话前约 1 小时读数偏差大。</li>
+          <li>第一次上电后的前 2 次测量固定输出 390ppm；新传感器要运行约 12 小时、再通一次风，精度才达标。</li>
+          <li>不要发 <code>0xE000</code>（写入温湿度补偿），那是没接 SHT4x 时用的。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="accel">
+        <h2>姿态传感器 <a class="ref">U8</a> SC7A20HTR</h2>
+        <p>v0.9 从 ST 的 LIS2DH12 换成士兰微 SC7A20HTR，便宜很多。它是三轴加速度计，数据和中断的大部分寄存器地址和 LIS2DH 系列相同，但<strong>不是完全兼容</strong>：敲击检测、0x1F 等寄存器的定义完全不同，不能直接套用 ST 的驱动（v4.30 按规格书 v0.7 核对）。封装同样是 LGA-12 2×2mm，但<strong>引脚编号和 LIS2DH12 不一样</strong>（LIS2DH12 的 1 脚是 SCL，这里 1 脚是 SDO），原理图符号和封装都要按 SC7A20H 规格书（v0.7 第 5、6 页）画，不能套用 LIS2DH12 的库。手头的规格书是带"PRELIMINARY"水印的 v0.7，拿到 v1.1 后重点核对 6D 中断的说明和敲击寄存器。</p>
+        <ul class="plain">
+          <li><strong>识别</strong>：WHO_AM_I（0x0F）= 0x11，VERSION（0x70）= 0x28，两个都对才是 SC7A20H。</li>
+          <li><strong>I2C 地址</strong>：SDO 悬空或接高为 0x19，这是规格书说的"不漏电接法"；接地为 0x18，还要关掉 SDO 内部上拉，否则一直漏电（规格书 10.1 节、第 28 页）。本设计接 3.3V，固定为 0x19。</li>
+          <li><strong>去耦</strong>：规格书应用图里 VDD（7 脚）和 VDDIO（3 脚）各放一颗 100nF。本设计两脚都接 3V3，只放 <a class="ref">C24</a> 一颗，所以 C24 要放在 3 脚和 7 脚之间、离焊盘 1～2mm 以内（v4.30 EDA 里离芯片中心约 4.2mm，偏远）；有空间再加一颗。</li>
+          <li><strong>不要碰的寄存器</strong>：0x00～0x0B、0x40～0x5F 是保留区，规格书写明"不要更改，可能会引起永久性破坏"，里面有出厂校准值。0x1F 在 LIS2DH12 上是温度传感器配置，在这里是 OSR、低通滤波和 HR 模式；0x1E 在这里没有定义。规格书 12.30 节说 0x57 控制 SDA、SCL 内部上拉（默认打开，和外部 4.7k 并联，影响不大），但 0x57 又在保留区里，不要去改。</li>
+          <li>连续读三轴数据（0x28～0x2D）时，子地址最高位置 1 才会自动递增，即从 0xA8 开始读 6 个字节，和 LIS2DH12 的用法一样。</li>
+          <li><strong>中断引脚</strong>：INT1 接 GPIO15，INT2 接 GPIO8，默认推挽输出（CTRL_REG6 0x25 的 INT_PP_OD 位可改成开漏），不需要上拉。<strong>默认是高电平有效</strong>：上电后 INT1 平时为低，触发时变高（H_LACTIVE = 0）。ext1 是"任一为低就唤醒"，所以进深睡前必须把 0x25 的 H_LACTIVE 设为 1。如果深睡期间传感器自己复位，INT1 会回到默认的低电平，ESP32 马上被唤醒；固件每次醒来先读 0x25 确认配置还在，不在就重新初始化。</li>
+          <li><strong>方向唤醒：只打开"其他方向"的中断</strong>。规格书的模式表和 ST 一样（INT1_CFG 0x30：AOI = 0、6D = 1 叫"6 个方向运动识别"，AOI = 1、6D = 1 叫"6 个方向位置检测"），但第 22 页的解释和 ST 不同："运动检测"指某个方向上的运动或振动超过阈值，建议用高通后的数据；"位置检测"指从一个位置缓慢转到另一个位置，用原始数据。我们要的"转动方向才唤醒一次"更接近它的"位置检测"。不管芯片实际按哪种方式工作，都按下面的做法配，就不会唤醒循环（<a class="fx">F6</a>）：每次醒来先读三轴数据判断当前方向，然后只打开<strong>其他方向</strong>对应的轴向中断位（比如竖拿时关掉竖拿方向那一位），再打开锁存（CTRL_REG5 0x24 的 LIR_INT1），读一次 INT1_SRC（0x31）清掉旧中断，最后进深睡。设备保持当前方向时不满足中断条件，INT1 不会拉低；转到别的方向才触发。规格书还提到：持续时间寄存器 0x33 的最高位置 1，可以减少阈值计数引起的误触发，样板上试一下。<span class="tag verify">待实测</span></li>
+          <li><strong>敲击翻页</strong>：INT2 接 GPIO8，用芯片自带的敲击检测，<strong>寄存器和 LIS2DH 不兼容</strong>，按规格书 12.24～12.29 节配置：0x38 CLICK_CRTL_REG 只开 Z 轴（CLICK_Z_EN），打开锁存（LIR_CLICK）；0x39 CLICK_SRC 的低 4 位直接给出敲了几下（1 单击、2 双击……最多 15 击），固件只认 2；0x3A～0x3D 是四个 CLICK_COEFF 系数寄存器，分别管敲击前的平稳时长和噪声门限、敲击幅度门限、脉冲宽度、恢复时长、单击最长时长和最多检测几击，字段是打包的，每个寄存器要整字节算好再写。规格书里的门限按 ±4g 量程、1LSB = 32mg 给出，推荐 ODR 200～400Hz。CTRL_REG6 的 I2_CLICK 置 1，把敲击中断映射到 INT2。阅读时多耗几十 µA，深睡前关掉。门限要装壳后在样机上调，塑料后壳会吸收一部分冲击。</li>
+          <li><strong>功耗</strong>：规格书（VDD = 2.5V）100Hz 时正常模式约 16µA、低功耗模式约 8.5µA，掉电约 0.5µA；宣传的 2µA 是 1.8V、1.56Hz 低功耗模式下的值。深睡时用低功耗模式 10Hz 左右，按 3～6µA 估算，要实测（ODR 设置见 0x20，低功耗位 LPen）。</li>
+          <li>画板时记下芯片 X、Y 轴相对屏幕的方向。LGA 封装没有外露引脚，自己焊要用钢网刷锡膏，再用热风枪或加热台。</li>
+        </ul>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th class="r">脚</th><th>名称</th><th>规格书（I2C 模式）</th><th>本设计接法</th></tr></thead>
+            <tbody>
+              <tr><td class="r">1</td><td class="m">SDO</td><td>悬空或接高为 0x19（不漏电）；接低为 0x18</td><td>接 3V3，地址 0x19</td></tr>
+              <tr><td class="r">2</td><td class="m">SDx</td><td>SDA</td><td>I2C_SDA（GPIO18）</td></tr>
+              <tr><td class="r">3</td><td class="m">VDDIO</td><td>I/O 电源，≤ VDD + 0.1V</td><td>3V3，C24 就近</td></tr>
+              <tr><td class="r">4</td><td class="m">NC</td><td>三种接口模式都要求接 GND</td><td>GND</td></tr>
+              <tr><td class="r">5</td><td class="m">INT1</td><td>中断 1，默认推挽、高电平有效</td><td>GPIO15（唤醒），固件改为低电平有效</td></tr>
+              <tr><td class="r">6</td><td class="m">INT2</td><td>中断 2，默认推挽、高电平有效</td><td>ACC_INT2 → GPIO8，敲击检测（双击翻页）。CTRL_REG6 的 I2_CLICK 置 1，把敲击中断映射到 INT2；和 INT1 一样设为低电平有效</td></tr>
+              <tr><td class="r">7</td><td class="m">VDD</td><td>电源 1.71～3.6V</td><td>3V3，旁边放 <a class="ref">C24</a></td></tr>
+              <tr><td class="r">8</td><td class="m">GNDIO</td><td>地</td><td>GND</td></tr>
+              <tr><td class="r">9</td><td class="m">GND</td><td>地</td><td>GND</td></tr>
+              <tr><td class="r">10</td><td class="m">CS</td><td>高电平选 I2C，内部有上拉，可悬空</td><td>接 3V3，固定为 I2C</td></tr>
+              <tr><td class="r">11</td><td class="m">NC</td><td>三种接口模式都要求悬空</td><td>悬空，不要接地</td></tr>
+              <tr><td class="r">12</td><td class="m">SCx</td><td>SCL</td><td>I2C_SCL（GPIO17）</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sec" id="tf">
+        <h2>TF 卡 <a class="ref">CARD1</a></h2>
+        <p>书可以直接放在 TF 卡里，没网也能看，外出时不用依赖书库服务。电脑端仍负责排版：把书渲染成页面图片后同步到卡上，设备端还是只显示图片。</p>
+        <ul class="plain">
+          <li><strong>接口</strong>：SDMMC 1-bit。CLK、CMD、D0 分别接 GPIO12、11、13，走 GPIO 矩阵。这三根和卡电源开关 GPIO10 在模组左边一列挨在一起，整组往左下走到卡座。1-bit 模式读一页未压缩的 48KB 图片约 10～20ms，压缩后更快，翻页够用，翻页够用。</li>
+          <li><strong>上拉</strong>：CMD、D0～D3 各接 10k（<a class="ref">R6</a>～<a class="ref">R10</a>）上拉到卡电源。D3 必须为高，卡才会进入 SD 模式；D1、D2 不用也要拉住，避免悬空。</li>
+          <li><strong>电源开关</strong>：卡空闲时也要耗 100～300µA，比整机深睡电流还大，所以加一路电源开关。<a class="ref">Q2</a>（AO3401A）串在 3V3 和卡电源之间，<a class="ref">R15</a> 100k 把栅极上拉，默认关断；GPIO10 拉低时接通。卡电源上放 <a class="ref">C25</a> 10µF + <a class="ref">C26</a> 0.1µF。</li>
+          <li><strong>缓启动</strong>（<a class="fx">F18</a>）：GPIO10 经 <a class="ref">R14</a> 10k 驱动 Q2 栅极，栅极和 3V3 之间并 <a class="ref">C27</a> 100nF（v4.27 由 47nF 改，和其他 100nF 同一种料）。时间常数 10k × 100nF = 1ms，Q2 约 1ms 才完全导通，C25 的充电电流限制在 50mA 左右，3V3 不会被拉跌。导通后栅压由 R14、R15 分压到约 0.3V，Q2 的栅源电压约 −3.0V，导通电阻仍小于 0.1Ω。</li>
+          <li><strong>时钟串联电阻</strong>：<a class="ref">R11</a> 33Ω 串在 CLK 上，放在模组 GPIO12 旁边。时钟线从模组到卡座约 45mm，串联电阻能压住边沿振铃和对天线的辐射。</li>
+          <li><strong>反灌</strong>：关断卡电源前，先把 CLK、CMD、D0 设为输出并拉低，再关 Q2。否则 GPIO 的高电平会经卡内保护二极管给卡供电，开关就白加了。</li>
+          <li><strong>引脚</strong>：CLK、CMD、D0 和卡电源开关都在模组左边一列，挨着卡座方向。</li>
+          <li><strong>卡座</strong>：自弹式，开口朝底边。v4.6 起桌面模式机器转 180° 放，卡口朝上，不用拿下来就能换卡。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="orient">
+        <h2>姿态与按键映射</h2>
+        <p>三个侧键 <a class="ref">SW1</a>～<a class="ref">SW6</a> 放在横放时的顶边（v4.5 起由 4 个减为 3 个）。v4.6 起按键和电池缺角对调了位置：按键在底边、电池在顶边。竖着拿时 Type-C 和天线在下，按键在右边、机身中部，从上到下是菜单、上一页、下一页；横放在支架上时机器转 180°，按键那条边朝上，电池那条边插进支架。姿态传感器判断横放还是竖拿，固件据此切换模式。左手用户可以在设置里打开"倒着拿"，画面转 180°、按键重新映射。选一个姿态看看：</p>
+        <div class="panel">
+          <div class="panel-head"><b>模拟 · 摆放方向</b>
+            <div class="seg" id="oriSeg"><button type="button" data-v="desk" aria-pressed="true">横放在支架上</button><button type="button" data-v="cw">竖拿（按键在右）</button><button type="button" data-v="ccw">倒着拿（设置项）</button><button type="button" data-v="flat">平放桌面</button></div></div>
+          <div class="orient">
+            <div class="ostage" id="ostage"></div>
+            <div class="readouts">
+              <div class="ro"><span class="ro-label">判定模式</span><span class="ro-value" id="omode"></span><span class="ro-sub" id="ograv"></span></div>
+              <dl class="keymap" id="okeys"></dl>
+              <div class="verdict ok" id="oV"></div>
+            </div>
+          </div>
+          <div class="panel-foot">方向稳定约 1～2 秒才切换，拿起和转动过程中不会来回跳。判断不准时，桌面模式下长按菜单、阅读模式下在菜单里手动切换模式。</div>
+        </div>
+      </section>
+
+      <section class="sec" id="audio">
+        <h2>功放 <a class="ref">U9</a> 与喇叭</h2>
+        <p>原方案的蜂鸣器改为 I2S 数字功放加 16×9×3.5mm 的 8Ω 腔体喇叭 <a class="ref">LS1</a>（阻抗和功率以实物为准）。v0.9 功放从 MAX98357A 换成纳芯威 NS4168：同样是 I2S 输入、不需要 MCLK 的单声道 D 类功放，但 ESOP-8 封装的 8 个引脚用烙铁就能焊，价格也低得多，M5Stack Core2 等 ESP32 设备上用得很多。除了朗读，桌面模式的提示音（等待确认、任务完成、低电量）也由喇叭播放，可以用不同音色区分事件。</p>
+        <ul class="plain">
+          <li><strong>供电</strong>：VDD 接 VSYS（插 USB 约 4.65V，电池 3.0～4.2V），不接 3.3V。功率更大（3.3V 时满幅约 0.68W，4.2V 约 1.1W），峰值电流也不经过 LDO，低电量时 3V3 不会被音频拖垮。代价是 I2S 电平余量：规格书的输入高电平门限是 0.7 × VDD，插 USB 时 VDD ≈ 4.65V，门限约 3.26V，3.3V 的 GPIO 几乎贴着门限 <span class="tag bench">待实测</span>。实际翻转点一般远低于这个值，M5Stack Core2 等产品也是这样用的；样板上插着 USB 播放确认无杂音、无丢声。如果有问题，再加电平转换或让功放在插 USB 时降压供电。VDD 旁放 <a class="ref">C28</a> 10µF + <a class="ref">C29</a> 0.1µF，附近 VSYS 上放 <a class="ref">C36</a>、<a class="ref">C37</a> 两颗 22µF / 16V X5R（0805，三星），吸收功放的脉冲电流（<a class="fx">F7</a>）。v4.27 由 100µF / 6.3V 聚合物钽 U12 改成陶瓷电容：设备以阅读为主，功放只偶尔小音量读人声（约 0.1～0.15A），用不上 100µF；聚合物钽的漏电手册上限 63µA，会算进深睡电流，陶瓷电容只有 nA 级。0805 22µF 加 4.2V 偏压后约剩 40%～50%，两颗实际约 20µF，加 C9、C28 各 10µF，VSYS 上约 40µF。要长时间大音量放音乐、电池又快没电时 3V3 余量会小一些，样板上实测。</li>
+          <li><strong>I2S</strong>：BCLK、LRCLK、SDATA 接 GPIO21、47、14，和 CTRL 一起在模组左边一列的最下面，沿 x≈79 的走廊下到功放。三根线尽量短，不要和喇叭输出线长距离平行。</li>
+          <li><strong>CTRL</strong>：接 GPIO48，加 <a class="ref">R16</a> 100k 下拉。CTRL 一个脚的电平同时管关断和声道（规格书 10.2.4 节）：0～0.4V 关断（漏电约 1µA），0.9～1.15V 开启并选左声道，1.5V～VDD 开启并选右声道。GPIO 输出 3.3V 落在右声道区间，余量很宽，所以固件要把声音放在 I2S 的右声道，或左右声道发同一份；复位或睡眠时 GPIO 悬空，下拉让功放保持关断。有的电路用 3V3 经电阻分压接 CTRL，那是为了固定选左声道（分到 0.9～1.15V）并让功放常开；本设计靠电池供电，功放空载就要约 13mA，必须能用 GPIO 关断，而且 0.9～1.15V 的窗口很窄，分压受电阻误差和 3V3 波动影响，不如直接用高电平稳。按 ESP32-S3 规格书 v2.2，GPIO48 复位时没有内部上下拉，上电也没有毛刺，R16 能稳稳拉低；样板上仍看一次波形（<a class="fx">F11</a>）。</li>
+          <li><strong>增益</strong>：NS4168 没有增益脚，音量全靠数字音量调。</li>
+          <li><strong>输出</strong>：VOP、VON 直接接喇叭焊盘 <a class="ref">H4</a>（v4.27 去掉原来的喇叭座，喇叭线直接焊上；v4.12 去掉了预留的 FB1、FB2）。NS4168 是免滤波的 D 类功放，喇叭线短（板内约 1cm 加喇叭引线），不需要磁珠；两根线并排走、长度相近，远离天线和 I2C。如果样板上 Wi-Fi 或 FM 频段受干扰，再在喇叭引线上套磁环。桥式输出，两端都不能接地。</li>
+          <li><strong>封装</strong>：ESOP-8，1.27mm 间距，底部有散热焊盘 EP。引脚是 1 CTRL、2 LRCLK、3 BCLK、4 SDATA、5 VON、6 VDD、7 GND、8 VOP。EP 接地，焊盘里打 4～6 个过孔到 L2 地平面，既散热又是功放的地回路。8 个引脚用烙铁能焊，EP 要用热风枪或加热台；只有烙铁的话，把 EP 焊盘中间的过孔开大到 0.6～0.8mm，焊完正面后从背面往孔里灌锡（要在装屏之前做）。按规格书，空载电流约 13mA，关断约 1µA，不播放时一律关断。</li>
+          <li><strong>备选</strong>：MAX98357A 的接法几乎一样（SD_MODE 对应 CTRL，另有 GAIN 脚），以后想换回去只改封装。</li>
+          <li>喇叭振动可能误触发姿态传感器的运动检测，播放期间固件忽略运动中断，只看方向。</li>
+        </ul>
+        <div class="panel">
+          <div class="panel-head"><b>计算器 · 喇叭功率</b><span><span class="tag calc">计算</span></span></div>
+          <div class="panel-body">
+            <div class="controls">
+              <div class="ctl"><span class="ctl-top">供电 VSYS</span>
+                <div class="seg" id="sysSeg"><button type="button" data-v="3.4">3.4V</button><button type="button" data-v="3.7">3.7V</button><button type="button" data-v="4.2">4.2V</button><button type="button" data-v="4.65" aria-pressed="true">USB 4.65V</button></div></div>
+              <div class="ctl"><div class="ctl-top"><label for="vol">数字音量</label><output id="volO"></output></div><input type="range" id="vol" min="-20" max="0" step="1" value="0"></div>
+              <div class="ctl"><span class="ctl-top">喇叭额定</span>
+                <div class="seg" id="spkSeg"><button type="button" data-v="1" aria-pressed="true">1W</button><button type="button" data-v="1.5">1.5W</button></div></div>
+            </div>
+            <div class="readouts">
+              <div class="ro-row">
+                <div class="ro"><span class="ro-label">满幅最大功率</span><span class="ro-value" id="pmax"></span></div>
+                <div class="ro"><span class="ro-label">此音量下峰值</span><span class="ro-value" id="pvol"></span></div>
+              </div>
+              <div class="verdict ok" id="spkV"></div>
+            </div>
+          </div>
+          <div class="panel-foot">P<sub>max</sub> ≈ VSYS² / (2 × 8Ω)，桥式输出理想值，未计输出管压降。数字音量每 −3dB 功率减半。</div>
+        </div>
+        <p>朗读人声的平均功率远低于满幅，问题主要在提示音和满音量播放（<a class="fx">F8</a>）。到评审页的 <a href="review.html#D5">D5</a> 选择限音量还是换喇叭。</p>
+        <h3>固件</h3>
+        <ul class="plain">
+          <li>朗读的 MP3 流播放推荐 ESP32-audioI2S 库，新版本依赖 PSRAM，N16R8 正好满足。提示音用几段短 WAV 存在 Flash 里。</li>
+          <li>不播放时把 CTRL 拉低；进深睡前置低并用 <code>gpio_hold_en()</code> 保持。</li>
+        </ul>
+      </section>
+
+    </div>
+    <aside class="rail" aria-label="本页导航"></aside>
+  </div>
+  <div class="titleblock-wrap" data-auto-foot></div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(() => {
+  const { el } = APP;
+  const $ = id => document.getElementById(id);
+  const V = APP.verdict;
+
+  /* I2C */
+  let rpu = 4.7;
+  APP.bindSeg($('rpuSeg'), v => { rpu = +v; i2c(); });
+  function i2c() {
+    const c = +$('cb').value;
+    $('cbO').textContent = c + ' pF';
+    const tr = 0.8473 * rpu * 1e3 * c * 1e-12 * 1e9;
+    $('tr').innerHTML = Math.round(tr) + '<small>ns</small>';
+    $('isink').innerHTML = (3.3 / rpu).toFixed(2) + '<small>mA</small>';
+    if (tr <= 300) V($('i2cV'), 'ok', '满足 400kHz 快速模式（≤ 300ns）。');
+    else if (tr <= 1000) V($('i2cV'), 'warn', '只能跑 100kHz 标准模式（≤ 1000ns）。换小一点的上拉或缩短走线。');
+    else V($('i2cV'), 'crit', '超过 1000ns，100kHz 也不可靠。');
+  }
+  $('cb').addEventListener('input', i2c); i2c();
+
+  /* orientation */
+  // 按真实比例画外壳 115×66：从屏幕一面看，原点在外壳左上角，u = 110 − 背面视图 x，w = 背面视图 y + 2
+  const W = 115, H = 66;
+  const WIN = [14.13, 4.66, 107.93, 61.34]; // 开窗（按规格书对准显示区，偏向没有 FPC 的一头）
+  const ANT = [5, 2, 12.6, 25.5];           // 天线净空区
+  // 侧键 SW6、SW2、SW1：背面 x 38.5、50.5、58.5 → u 71.5、59.5、51.5，在底边（v4.6）
+  const keyU = [['SW2', 51.5], ['SW1', 59.5], ['SW6', 71.5]];
+  const sym = t => t.startsWith('菜单') ? '≡' : t.includes('上一页') ? '‹' : '›'; // 图上的标注：≡ 菜单、‹ 上一页、› 下一页
+  const maps = {
+    desk: { mode: '桌面模式', grav: '重力沿短边向下', keys: { SW6: '菜单（长按切换模式；有提醒时短按确认）', SW1: '上一页面', SW2: '下一页面' } },
+    cw:   { mode: '阅读模式', grav: '重力沿长边，按键在右侧', keys: { SW6: '菜单（长按朗读）', SW1: '上一页', SW2: '下一页' } },
+    ccw:  { mode: '阅读模式（倒着拿）', grav: '重力沿长边，按键在左侧', keys: { SW6: '菜单（长按朗读）', SW1: '下一页', SW2: '上一页' } },
+    flat: { mode: '保持当前模式', grav: '重力垂直于屏幕', keys: null }
+  };
+  let last = 'desk';
+  function drawOri(o) {
+    const S = 2.6; // px per mm
+    const portrait = o === 'cw' || o === 'ccw';
+    const bw = (portrait ? H : W) * S, bh = (portrait ? W : H) * S;
+    const VW = 360, VH = 350;
+    const ox = (VW - bw) / 2, oy = (VH - bh) / 2 + 6;
+    // v4.6：桌面模式机器转 180° 放；竖拿（cw）时 Type-C 和天线在下、按键在右；倒着拿（ccw）反过来
+    const tf = (x, y) => o === 'cw' ? [y, W - x] : o === 'ccw' ? [H - y, x] : [W - x, H - y];
+    const P = (x, y) => { const [a, b] = tf(x, y); return [ox + a * S, oy + b * S]; };
+    let s = `<svg viewBox="0 0 ${VW} ${VH}" role="img" aria-label="设备摆放示意"><g class="devg" style="transform-origin:${VW / 2}px ${oy + bh / 2}px">`;
+    const R = (u0, w0, u1, w1) => { const p = P(u0, w0), q = P(u1, w1); return `x="${Math.min(p[0], q[0])}" y="${Math.min(p[1], q[1])}" width="${Math.abs(q[0] - p[0])}" height="${Math.abs(q[1] - p[1])}"`; };
+    s += `<rect class="dev" x="${ox}" y="${oy}" width="${bw}" height="${bh}" rx="10"/>`;
+    s += `<rect class="scr" ${R(...WIN)} rx="2"/>`;
+    const sc = P((WIN[0] + WIN[2]) / 2, (WIN[1] + WIN[3]) / 2);
+    s += `<text class="scrt" x="${sc[0]}" y="${sc[1]}" text-anchor="middle">${o === 'flat' ? '屏幕朝上' : maps[o].mode}</text>`;
+    // antenna: right short edge seen from the back = left short edge seen from the screen
+    s += `<rect class="ant" ${R(...ANT)}/>`;
+    // keys on the top edge, protruding from the wall
+    const km = maps[o].keys || maps[last].keys;
+    // v4.7 键帽：翻页翘板盖住 SW2、SW1，菜单是单独的圆键
+    const ru = (keyU[0][1] + keyU[1][1]) / 2, mu = keyU[2][1];
+    s += `<rect class="key" ${R(ru - 8, H - .8, ru + 8, H + 1.6)} rx="2"/>`;
+    const m0 = P(mu, H + .4);
+    s += `<circle class="key" cx="${m0[0]}" cy="${m0[1]}" r="${1.8 * S}"/>`;
+    keyU.forEach(([ref, ku]) => {
+      const c = P(ku, H + 6);
+      const anchor = o === 'cw' ? 'start' : o === 'ccw' ? 'end' : 'middle';
+      const dx = o === 'cw' ? 4 : o === 'ccw' ? -4 : 0;
+      s += `<text x="${c[0] + dx}" y="${c[1] + 4}" text-anchor="${anchor}">${sym(km[ref])}</text>`;
+    });
+    const at = P(-1.5, 13.75);
+    const aAnchor = o === 'cw' || o === 'ccw' ? 'middle' : 'start';
+    const ady = o === 'cw' ? 12 : o === 'ccw' ? -2 : 4;
+    s += `<text class="s" x="${at[0]}" y="${at[1] + ady}" text-anchor="${aAnchor}">天线</text></g>`;
+    // gravity arrow
+    if (o !== 'flat') { s += `<path class="grav" d="M${VW - 22},${VH - 70} V${VH - 30}"/><path class="gravh" d="M${VW - 28},${VH - 32} L${VW - 22},${VH - 22} L${VW - 16},${VH - 32} Z"/><text class="s" x="${VW - 22}" y="${VH - 76}" text-anchor="middle">g</text>`; }
+    else { s += `<circle cx="${VW - 22}" cy="${VH - 46}" r="9" class="grav"/><circle cx="${VW - 22}" cy="${VH - 46}" r="2.5" class="gravh"/><text class="s" x="${VW - 22}" y="${VH - 62}" text-anchor="middle">g</text>`; }
+    s += '</svg>';
+    $('ostage').innerHTML = s;
+  }
+  const ang = { desk: 0, cw: 90, ccw: -90, flat: 0 };
+  let shown = null;
+  function ori(o) {
+    drawOri(o);
+    const g = $('ostage').querySelector('.devg');
+    if (shown && g.animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      let d = ang[o] - ang[shown];
+      if (Math.abs(d) > 180) d -= Math.sign(d) * 360;
+      const frames = o === 'flat' || shown === 'flat'
+        ? [{ transform: 'scale(.86)', opacity: .4 }, { transform: 'none', opacity: 1 }]
+        : [{ transform: `rotate(${-d}deg) scale(${d ? .82 : 1})` }, { transform: 'none' }];
+      g.animate(frames, { duration: 520, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+    shown = o;
+    const m = maps[o];
+    $('omode').textContent = o === 'flat' ? maps[last].mode.replace('模式', '') + '（保持）' : m.mode;
+    $('ograv').textContent = m.grav;
+    const dl = $('okeys'); dl.innerHTML = '';
+    const km = m.keys || maps[last].keys;
+    ['SW6', 'SW2', 'SW1'].forEach(k => dl.append(el('dt', { text: sym(km[k]) }), el('dd', null, km[k] + ' ', el('a', { class: 'ref', text: k }))));
+    APP.enhance(dl);
+    if (o === 'desk') V($('oV'), 'ok', '机器转 180° 放，按键在上边；天线在右侧短边下半段，离支架近，支架槽不深、不是金属就没问题。');
+    else if (o === 'flat') V($('oV'), 'ok', '平放时保持上一个模式，平放在桌上看书不会被切走。');
+    else if (o === 'cw') V($('oV'), 'ok', '按键在右侧、机身中部，拇指够得着；Type-C 和天线在下方，手握住下半部分对 Wi-Fi 影响很小。');
+    else V($('oV'), 'warn', '只有在设置里打开"倒着拿"才这样用：画面转 180°，按键重新映射，按键在左、Type-C 和天线在上；没打开设置时，固件按"按键在右"处理。');
+    if (o !== 'flat') last = o;
+  }
+  APP.bindSeg($('oriSeg'), ori);
+  ori('desk');
+
+  /* speaker */
+  let sys = 4.65, spk = 1;
+  APP.bindSeg($('sysSeg'), v => { sys = +v; speaker(); });
+  APP.bindSeg($('spkSeg'), v => { spk = +v; speaker(); });
+  function speaker() {
+    const db = +$('vol').value;
+    $('volO').textContent = db + ' dB';
+    const pmax = sys * sys / 16, p = pmax * Math.pow(10, db / 10);
+    $('pmax').innerHTML = pmax.toFixed(2) + '<small>W</small>';
+    $('pvol').innerHTML = p.toFixed(2) + '<small>W</small>';
+    if (p <= spk * 0.8) V($('spkV'), 'ok', `峰值 ${p.toFixed(2)}W，低于 ${spk}W 额定的 80%。`);
+    else if (p <= spk) V($('spkV'), 'warn', `峰值 ${p.toFixed(2)}W，接近 ${spk}W 额定。短时提示音可以，持续满音量不行。`);
+    else {
+      const need = 10 * Math.log10(spk * 0.8 / pmax);
+      V($('spkV'), 'crit', `峰值 ${p.toFixed(2)}W，超过 ${spk}W 额定。音量上限降到 ${Math.floor(need)} dB 以下，或换更大功率的喇叭。`);
+    }
+  }
+  $('vol').addEventListener('input', speaker); speaker();
+})();
+</script>
+</body>
+</html>

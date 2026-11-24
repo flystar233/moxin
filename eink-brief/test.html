@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>打样测试 · 墨水屏监控器 · 工程资料</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/brief.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+
+</head>
+<body data-page="test">
+<header class="bar"><div class="wrap"><a class="brand" href="docs.html"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">墨水屏监控器 · 工程资料</span></a><nav class="tabs" aria-label="页面"><a href="docs.html"><span class="n">←</span>网站</a><a href="electrical.html"><span class="n">01</span>电气</a><a href="mechanical.html"><span class="n">02</span>结构</a><a href="case.html"><span class="n">03</span>外壳制造</a><a href="bom.html"><span class="n">04</span>器件清单</a><a href="test.html" aria-current="page"><span class="n">05</span>打样测试</a></nav><button class="theme-btn" type="button" id="themeBtn" aria-label="切换主题">主题：跟随系统</button></div></header>
+<div class="wrap">
+  <header class="sheet-head"><div class="sh-text">
+    <p class="eyebrow">v4.45 · 2026-11-06 · PCB 已打样（PCB1 2026-11-06）· 外壳 v1</p>
+    <h1>打样测试</h1>
+    <p class="lede">样板焊好后按顺序做的 11 步检查。每一步通过了再做下一步；前几步不过时不要接电池。新板没有固件拉住 PWR_HOLD，上电时一直按住电源键 SW3，或贴上 R33。</p>
+  </div></header>
+
+  <div class="body">
+    <div class="main">
+      <section class="sec" id="steps">
+        <h2><span class="n">5.1</span>检查步骤</h2>
+<div class="tbl-wrap"><table><thead><tr><th class="r">步</th><th>做什么</th><th>通过标准</th></tr></thead><tbody><tr><td class="r">1</td><td><b>目检，不上电</b><div class="sub">U2 邮票孔整圈、FPC1 的细间距引脚、U9 的 ESOP-8 引脚查连锡，并确认 EP 焊上（对地电阻应接近 0Ω）。核对有方向的器件：D4～D6、D3 色带、D2、U13、Q1、D1、LED1。万用表测 VBUS、VSYS、3V3 对 GND 不短路。</div></td><td>无连锡，方向全对，三个电源网络对地电阻都大于 100Ω。</td></tr><tr><td class="r">2</td><td><b>限流电源上电，不接电池、不接屏</b><div class="sub">贴上 R33 或一直按住 SW3（新板没有固件拉 PWR_HOLD），5V 限流 200mA 经 USB-C 转接板灌入（或焊两根线到 C35 两端），测 VSYS（C9 两端）、3V3（C10 两端）和电流。</div></td><td>VSYS ≈ 4.55～4.70V，3V3 = 3.20～3.40V，ESP32 启动后电流 40～80mA。</td></tr><tr><td class="r">3</td><td><b>USB、烧录与复位</b><div class="sub">插真实 USB：电脑能枚举 CDC 串口、能自动下载；H3 能看到启动日志。反复插拔 20 次。示波器单次触发看 VBUS 插入振铃：探头用接地弹簧点在 C34 上，带宽限制 20MHz，触发 5.6V；用 USB-A 充电头配一根短粗的线最严重，USB-C 对 C 充电器做对照。</div></td><td>每次都能正常启动；VBUS 峰值不超过 6V；按电源键开机时用第二个通道看 VSYS（C9 两端），VSYS 峰值不超过 5.6V（TPS22917、LDO、功放的耐压都在 6V 左右）。</td></tr><tr><td class="r">4</td><td><b>电池与负载共享</b><div class="sub">用限流 3.7V 电源模拟电池，经 MX1.25 插头接到 U3，先确认极性。插拔 USB 时看 VSYS；插着 USB 时测 Q1 栅源电压和电池电流；拔掉 USB 后测 VBUS 对地电压。长按 SW3 开机、再长按关机，测 U14 的 ON 脚和 VSYS；不装固件时按住 SW3 才能上电，确认松手即断电。</div></td><td>切换时 VSYS 不低于 3.0V；插 USB 时 Q1 的 VGS 为正、电池无放电电流；拔 USB 后 VBUS 低于 0.3V；开机后 U14 的 ON 约 2.6V（PWR_HOLD 经 D7）、示波器看 VSYS（C9 两端）上升沿约 5～10ms、平滑无台阶，连续开关机 20 次都能正常启动、0.5A 负载下 VSYS 比 VSYS_IN 低不到 60mV；关机时 ON 低于 0.35V，VSYS 在几十毫秒内降到 0.1V 以下（QOD 放电）。</td></tr><tr><td class="r">5</td><td><b>充电与电量</b><div class="sub">接真电池充一次。记录充电电流、终止电流、充电灯 LED1 和 USB 检测（GPIO9）的状态，充电开始时测 U1 温度。充满后拔掉 USB，用固定负载放到 3.3V，每 10 分钟记一次 U10 的 SOC 和 VCELL。</div></td><td>充电电流 550～650mA；约 60mA 时终止；充电时 LED1 亮、充满后灭，GPIO9 插线时为高；U10 的 SOC 与按放电时间折算的电量相差不超过 5%。</td></tr><tr><td class="r">6</td><td><b>墨水屏</b><div class="sub">先测 3V3 正常再接屏。示波器探头直接点 U13 栅极（GDR）、C12（VGH）和 C33（VGL），分别在全刷、局刷和电池 3.4V 时测。</div></td><td>VGH、VGL 在规格书范围内建立，刷新时间与参考值一致，U13 不明显发热，低电量时仍能正常刷新。</td></tr><tr><td class="r">7</td><td><b>I2C 器件</b><div class="sub">I2C 扫描；读 U8 的 WHO_AM_I；U10 写 MODE（0x0A）= 0x00 唤醒后读 VCELL，与万用表在 C2 两端（VBAT）测的电池电压对比；U6 走时 24 小时；U7 发 0x365B 读产品 ID（应为 0x0901018A），发 0x278C 自检（返回 0x0000；bit4 为 1 说明 U11 没接上），再单次测量，温湿度和室温计对比，对着通风槽呼一口气看 CO2 上升。</div></td><td>看到 0x19、0x51、0x62、0x64（U11 挂在 U7 后面，扫描看不到）；U7 自检通过，呼气后 CO2 明显上升、几分钟内回落；U10 的 VCELL 与万用表相差不超过 10mV；U6 一天误差在几秒内；转动设备方向判断正确。</td></tr><tr><td class="r">8</td><td><b>TF 卡</b><div class="sub">插卡后读写一个 10MB 文件并校验；示波器看 GPIO10 拉低瞬间的 3V3 和卡电源；GPIO10 拉高关断后测卡座电源脚电压；深睡前把 CLK、CMD、D0 拉低，测有没有反灌。</div></td><td>读写正确；打开卡电源时 3V3 跌落小于 0.1V；关断后卡座电源低于 0.2V。</td></tr><tr><td class="r">9</td><td><b>音频</b><div class="sub">示波器看上电、复位、烧录时的 CTRL。电池 3.6V 时开 Wi-Fi 下载，同时按限制后的音量播放，看 3V3 最低点。插着 USB（VDD ≈ 4.65V）连续播放 10 分钟，听有没有杂音、断音。</div></td><td>上电和复位时 CTRL 始终低于规格书的关断门限，没有爆音；3V3 最低不低于 3.0V，ESP32 不重启；插 USB 时 3.3V 的 I2S 能被正常识别，无杂音、断音。</td></tr><tr><td class="r">10</td><td><b>睡眠与唤醒</b><div class="sub">微安表串在电池上测深睡电流（TF 卡插着但已关断）。逐个触发唤醒源：三个按键（翘板上下两半、菜单键）、U6 闹钟、转动设备、插 USB。U8 按&quot;只开其他方向&quot;配好后，横、竖、倒着各放 10 分钟，确认不反复唤醒；再拔一次电池重新上电，确认固件能发现 U8 配置丢失并重新初始化。深睡期间用万用表测 U14 的 ON 脚，确认 PWR_HOLD 的保持没有在睡眠中丢失。最后长按 SW3 关机（屏上应留着关机画面），再测一次电流；关机状态下插 USB，确认只充电、系统不启动。</div></td><td>深睡电流不超过 100µA（目标约 50µA，其中 U10 约 15µA）；深睡全程 U14 的 ON 稳定在约 2.6V、不掉电；每个唤醒源都能唤醒；没有唤醒循环；长按关机后电流约 6～15µA（电池保护板、U1 和 D2 的漏电，加睡眠的 U10 约 0.5µA、U6 的约 0.3µA；超过 20µA 先查 U10 是否进了睡眠）；关机充电约 1 小时后开机，U10 的 SOC 和 VCELL 对得上；关机放一段时间再开机、不联网，时间仍然对；关机插 USB 时屏幕不刷新、U1 正常充电。</td></tr><tr><td class="r">11</td><td><b>装壳、射频与发热</b><div class="sub">装进外壳，对比横放、竖握和插着 USB 线时的 RSSI；立在支架上插拔一次 USB；按压屏幕缺角区域，确认屏幕不晃、电池不受压；确认喇叭和元件都没有顶到后壳。插 USB 充电同时常连 Wi-Fi 一小时，测 U1、U4 表面温度，看 U11 温度读数的偏差；放支架和平放各开一次窗，对比 U7 的 CO2 读数下降快慢。</div></td><td>键帽：翘板压上半只触发 SW1、压下半只触发 SW2，正中按下两个都触发、固件当作无效（外壳 v1 没有支点筋）；翘板压一头时另一头不往外翘；随手握着不误按（不行就把外伸减到 0.4mm）；键帽不晃、不卡，松手立刻弹回；TF 卡用指甲顺着指甲槽能按到卡尾、按一下弹出，手握时不会误弹；电源键帽和壳面齐平，指腹按得到、凸点摸得到；手握、放支架、装包里各试一次，看会不会被一直压住 3 秒而误开机。竖握时 RSSI 下降不超过 10dB；U4 表面温度低于 80°C；U11 温度偏差可以用固定补偿修正；放支架时 CO2 响应不比平放慢太多（慢很多就在通风槽和支架之间加间隙）。</td></tr></tbody></table></div>
+      </section>
+
+      <section class="sec" id="tp">
+        <h2><span class="n">5.2</span>测量点</h2>
+        <p>板上不设测试点，下面每项直接点所列器件的焊盘（电容两端、R33 空焊盘、R4/R5、H3），器件位置见结构页的器件布局图。</p>
+<div class="tbl-wrap"><table><thead><tr><th>点在哪</th><th>网络</th><th>用途</th></tr></thead><tbody><tr><td class="m"><span class="ref">C34</span></td><td class="m">VBUS</td><td>输入电压、插拔振铃，C34 或 C35 两端</td></tr><tr><td class="m"><span class="ref">C9</span></td><td class="m">VSYS</td><td>开机上升沿、负载共享切换、低电量压降（c32、c33），C9 或 C36 两端</td></tr><tr><td class="m"><span class="ref">C2</span></td><td class="m">VBAT</td><td>充电电压、终止判断，C2 或 C7 两端</td></tr><tr><td class="m"><span class="ref">C10</span></td><td class="m">3V3</td><td>Wi-Fi 发射时的跌落（F7、c33），C10 或模组旁的 C5 两端</td></tr><tr><td class="m"><span class="ref">U1</span></td><td class="m">BAT</td><td>U1 的 BAT 脚（5 脚）对散热焊盘，看有没有 MHz 振铃（c34）</td></tr><tr><td class="m"><span class="ref">R33</span></td><td class="m">ON / VSYS_IN</td><td>R33 不贴，两个空焊盘正好是 ON 和 VSYS_IN，看 gpio_hold 能不能撑过复位（c32）</td></tr><tr><td class="m"><span class="ref">C25</span></td><td class="m">SD_VCC</td><td>打开卡电源时的冲击，C25 或 C26 两端</td></tr><tr><td class="m"><span class="ref">C12</span></td><td class="m">VGH / VGL</td><td>屏升压建立和纹波，C12、C33 两端；±20V，探头别碰到相邻网络</td></tr><tr><td class="m"><span class="ref">R4</span></td><td class="m">I2C</td><td>R4（SCL）、R5（SDA）靠总线那一端接逻辑分析仪</td></tr><tr><td class="m"><span class="ref">H3</span></td><td class="m">UART</td><td>RX、TX 两个焊盘看开机日志</td></tr></tbody></table></div>
+      </section>
+    </div>
+    <aside class="rail" aria-label="本页导航"><div class="toc-box"><h4>本页</h4><ol class="toc"><li><a href="#steps"><span class="n">5.1</span>检查步骤</a></li><li><a href="#tp"><span class="n">5.2</span>测量点</a></li></ol></div></aside>
+  </div>
+
+<nav class="pager" aria-label="上一页与下一页"><a href="bom.html"><span>← 04</span>器件清单</a></nav>
+<footer class="foot">墨水屏桌面监控器与阅读器 · v4.45 · 2026-11-06 · PCB 已打样（PCB1 2026-11-06）· 外壳 v1。本文由设计笔记自动生成，数值以最新版本为准。</footer>
+</div>
+<script src="assets/brief.js"></script>
+</body>
+</html>

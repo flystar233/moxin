@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>评审 · 墨水屏监控器设计笔记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .flist { display: grid; gap: 12px; }
+  .fcard { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); scroll-margin-top: calc(var(--bar-h) + 16px); position: relative; overflow: hidden; }
+  .fcard::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--stripe, var(--rule)); }
+  .fcard[data-sev="must"] { --stripe: var(--crit); }
+  .fcard[data-sev="should"] { --stripe: var(--warn); }
+  .fcard[data-sev="open"] { --stripe: var(--mask); }
+  .fcard:target { box-shadow: 0 0 0 2px var(--copper); }
+  .fcard { transition: opacity .25s, box-shadow .25s; }
+  .fcard::before { transition: background-color .25s; }
+  .fcard[data-state="done"] { opacity: .72; --stripe: var(--ok); }
+  .fcard[data-state="disagree"] { --stripe: var(--crit); }
+  .fcard[data-state="done"] .fid::after { content: "✓"; display: inline-block; margin-left: 4px; color: var(--ok); font-size: .9em; }
+  @media (prefers-reduced-motion: no-preference) {
+    .fcard[data-state="done"] .fid::after { animation: stamp .35s cubic-bezier(.3, 1.6, .5, 1); }
+    .flist .fcard { animation: fadein .3s ease-out both; }
+  }
+  @keyframes stamp { from { transform: scale(2.2) rotate(-12deg); opacity: 0; } }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } }
+  .fhead { display: grid; grid-template-columns: 3.4em minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px 16px 10px 18px; }
+  .fid { font-family: var(--f-mono); font-weight: 600; font-size: 1.15rem; line-height: 1.5; }
+  .ftitle { font-weight: 700; font-size: 1.02rem; line-height: 1.5; }
+  .fmeta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 4px; font-size: var(--fs-sm); color: var(--ink-3); }
+  .fbody { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; border-top: 1px solid var(--rule-2); }
+  .fbody > div { padding: 12px 16px 12px 18px; font-size: .93rem; line-height: 1.7; min-width: 0; }
+  .fbody > div + div { border-left: 1px solid var(--rule-2); }
+  .fbody h4 { margin: 0 0 4px; font-family: var(--f-mono); font-size: var(--fs-xs); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+  .fnote { padding: 10px 16px 14px 18px; border-top: 1px solid var(--rule-2); background: color-mix(in srgb, var(--sunk) 40%, var(--sheet)); }
+  .fnote label { font-size: var(--fs-xs); color: var(--ink-3); display: block; margin-bottom: 4px; }
+  .stseg button[data-v="done"][aria-pressed="true"] { background: var(--ok); color: var(--paper); }
+  .stseg button[data-v="disagree"][aria-pressed="true"] { background: var(--crit); color: var(--paper); }
+  .stseg button[data-v="agree"][aria-pressed="true"] { background: var(--mask); color: var(--on-mask); }
+  .empty { padding: 28px; text-align: center; color: var(--ink-3); border: 1px dashed var(--rule); border-radius: var(--radius); }
+
+  .dlist { display: grid; gap: 12px; }
+  .dcard { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); padding: 14px 16px; display: grid; gap: 10px; }
+  .dtop { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
+  .dtop .id { font-family: var(--f-mono); font-weight: 600; }
+  .dtop .t { font-weight: 700; }
+  .dtop .w { font-size: var(--fs-sm); color: var(--ink-3); margin-left: auto; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+  .opt { position: relative; display: grid; gap: 2px; padding: 9px 12px; border: 1px solid var(--rule); border-radius: var(--radius); cursor: pointer; background: var(--paper); }
+  .opt:hover { border-color: var(--ink-3); }
+  .opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .opt .l { font-weight: 600; font-size: .94rem; display: flex; gap: 8px; align-items: baseline; }
+  .opt .r { font-family: var(--f-mono); font-size: .68rem; color: var(--mask); letter-spacing: .06em; }
+  .opt .s { font-size: var(--fs-sm); color: var(--ink-3); }
+  .opt:has(input:checked) { border-color: var(--mask); box-shadow: inset 0 0 0 1px var(--mask); background: var(--mask-soft); }
+  .opt:has(input:focus-visible) { outline: 2px solid var(--mask); outline-offset: 2px; }
+  .confirm { display: inline-flex; gap: 8px; align-items: center; font-size: var(--fs-sm); }
+  ul.nb { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); }
+  ul.nb li { display: grid; grid-template-columns: minmax(0, 15em) minmax(0, 1fr); gap: 16px; padding: 11px 16px; border-bottom: 1px solid var(--rule-2); font-size: .93rem; }
+  ul.nb li:last-child { border-bottom: 0; }
+  ul.nb b { font-weight: 700; }
+  @media (max-width: 720px) {
+    .fhead { grid-template-columns: 3em minmax(0, 1fr); }
+    .fhead .stseg { grid-column: 1 / -1; }
+    .fbody { grid-template-columns: minmax(0, 1fr); }
+    .fbody > div + div { border-left: 0; border-top: 1px solid var(--rule-2); }
+    ul.nb li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  }
+</style>
+</head>
+<body data-sheet="review">
+<header class="bar"><div class="wrap"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">墨水屏监控器 · 阅读器</span></a><nav class="tabs" aria-label="图纸"><a href="index.html"><span class="n">01</span>首页</a><a href="overview.html"><span class="n">02</span>概览</a><a href="review.html" aria-current="page"><span class="n">03</span>评审</a><a href="budget.html"><span class="n">04</span>功耗与续航</a><a href="power.html"><span class="n">05</span>供电与充电</a><a href="display.html"><span class="n">06</span>墨水屏</a><a href="peripherals.html"><span class="n">07</span>主控与外设</a><a href="pins.html"><span class="n">08</span>引脚</a><a href="schematic.html"><span class="n">09</span>原理图</a><a href="layout.html"><span class="n">10</span>PCB 布局</a><a href="firmware.html"><span class="n">11</span>固件与通信</a><a href="bom.html"><span class="n">12</span>器件清单</a><a href="bringup.html"><span class="n">13</span>打样验收</a></nav><button class="theme-btn" type="button" id="themeBtn" aria-label="切换主题">主题：跟随系统</button></div><div class="bar-prog" aria-hidden="true"></div></header>
+<script>(function(){var t=document.querySelector('.tabs'),c=t&&t.querySelector('[aria-current]');if(c){var o=c.offsetLeft-t.offsetLeft+c.offsetWidth-t.clientWidth;if(o>0)t.scrollLeft=o+40;}try{var v=JSON.parse(localStorage.getItem('eink.theme')),L={light:'浅色',dark:'深色'};if(L[v])document.getElementById('themeBtn').textContent='主题：'+L[v];}catch(e){}})();</script>
+<div class="wrap">
+  <header class="sheet-head"><div class="sh-text">
+    <p class="eyebrow">图纸 <b>03</b> / 13 · v4.45 · PCB 已打样（PCB1 2026-11-06）· 外壳 v1</p>
+    <h1>评审</h1>
+    <p class="lede">逐块检查后，整体结构里没有发现做不出来的问题。六个设计决定已在 v0.6 定稿；剩下的主要是样板上的实测项（<a class="fx">F1</a>、<a class="fx">F2</a> 的升压波形，<a class="fx">F11</a> 的上电爆音，<a class="fx">F18</a> 的卡电源冲击），以及两个仍开着的问题：<a class="fx">F7</a> 低电量时 LDO 压差让 3V3 余量不足，<a class="fx">F17</a> CW2015 的电池模型要和 454261 对上。每一项都可以标记状态、写下你的意见，最后复制成一段文字发给我。</p>
+  </div><aside class="sh-card" aria-label="本页概况"><div class="sh-no">03</div><dl class="sh-stats"><div><dt>章节</dt><dd>3</dd></div><div><dt>评审项</dt><dd>18</dd></div><div><dt>表格</dt><dd>0</dd></div></dl><div class="sh-prog" data-f="F1 F2 F3 F4 F5 F6 F7 F8 F9 F13 F14 F16 F17 F18 F15 F10 F11 F12"><span>本页评审已处理<b>0 / 18</b></span><div class="sh-bar" aria-hidden="true"></div></div></aside></header>
+
+  <div class="body">
+    <div class="main wide" style="max-width:58rem">
+
+      <section class="sec" id="findings">
+        <h2><span class="n">3.1</span>评审发现</h2>
+        <div class="toolbar">
+          <div class="chips" id="sevChips" role="group" aria-label="按等级筛选"></div>
+        </div>
+        <div class="toolbar">
+          <div class="chips" id="stChips" role="group" aria-label="按状态筛选"></div>
+          <span style="flex:1"></span>
+          <button class="btn primary" type="button" id="copyBtn">复制评审汇总</button>
+          <span id="resetBox"><button class="btn" type="button" id="resetBtn">清空我的标记</button></span>
+        </div>
+        <div id="copyHost" class="copybox"></div>
+        <div class="flist" id="flist"></div>
+      </section>
+
+      <section class="sec" id="decisions">
+        <h2><span class="n">3.2</span>设计决定</h2>
+        <p>六个决定已在 v0.6 按你的回答定稿，选中项就是当前方案。想改的话直接点别的选项，改动保存在本机，也会出现在复制的汇总里。</p>
+        <div class="dlist" id="dlist"></div>
+      </section>
+
+      <section class="sec" id="notbugs">
+        <h2><span class="n">3.3</span>看起来像错误但不是</h2>
+        <p>审图或板厂 DFM 检查时，下面这些容易被当成错误，其实是有意为之。</p>
+        <ul class="nb">
+          <li><b><a class="ref">Q1</a> 像是接反了</b><span>D 极接电池、S 极接 VSYS_IN。这样体二极管从电池指向 VSYS_IN，拔掉 USB 的瞬间先由体二极管供电，系统不掉电。</span></li>
+          <li><b><a class="ref">Q1</a> 栅极直接接 VBUS，没有串联电阻</b><span>插 USB 时栅源电压等于 D2 的压降，约 +0.35V，Q1 可靠关断。串 10k 这类电阻会和 R21（10k）分压，栅极只剩 VBUS 的一半，Q1 直接导通，插着 USB 时电池也在放电。</span></li>
+          <li><b>FPC 13、14 脚叫 SCL、SDA 却接 SPI</b><span>这是屏厂的命名，实际是 SPI 时钟和数据。</span></li>
+          <li><b><a class="ref">U9</a> 接 VSYS 不接 3.3V</b><span>为了更大的输出功率，同时让音频峰值电流不经过 LDO。</span></li>
+          <li><b>喇叭两根线都不接地</b><span>NS4168 是桥式输出，任何一端接地都会烧功放。</span></li>
+          <li><b>GPIO16 上接了两个芯片的中断</b><span><a class="ref">U6</a> 的 INT 和 <a class="ref">U10</a> 的 ALRT 都是开漏输出，线与后共用 <a class="ref">R3</a> 上拉；醒来后两个芯片的标志都读一遍，就知道是谁触发的。</span></li>
+          <li><b><a class="ref">U6</a> 没有纽扣电池</b><span>掉电后靠电脑端下发的时间恢复，开机检查 VL 位就知道时间是否可信。</span></li>
+          <li><b><a class="ref">U8</a> 的 INT1 没有上拉</b><span>它是推挽输出，不需要。</span></li>
+          <li><b>没有 USB 转串口芯片</b><span>S3 原生 USB 负责烧录和串口，<a class="ref">H3</a> 是备用。</span></li>
+          <li><b>GPIO39～42 是 JTAG 脚却接了屏的 SPI</b><span>调试走内置 USB-JTAG，这四个脚当普通 GPIO 用。它们在模组下边一排、正对 FPC1，屏的线最顺；GPIO39 复位期间的弱上拉只是让 SCK 停在高电平，没有时钟沿，屏不会收到数据。</span></li>
+          <li><b>PCB 朝屏一面没有元件</b><span>屏幕玻璃只有 0.85mm，需要整面平整支撑。</span></li>
+          <li><b>CO2、温湿度传感器周围有一条 L 形槽</b><span>隔热用。槽不切到板边，不改变板子外形。</span></li>
+          <li><b>PCB 是 L 形，缺了一个角</b><span>左上角 63×43mm（v4.6 起，原在左下）留给 4.5mm 厚的电池。电池直接贴在屏背面，整机约 8.8mm；缺角处的屏幕由贴在背面的支撑片承托。</span></li>
+          <li><b>电池座用 MX1.25 而不是常见的 PH2.0</b><span>PH2.0 座高 4.6mm，比这块电池还高，会把整机撑厚；<a class="ref">U3</a> 用 MX1.25 卧贴座，高 3.6mm，在限高内。注意插头线序没有统一标准，插之前先量。</span></li>
+          <li><b>关机后插 USB 只充电，不开机</b><span>负载开关 <a class="ref">U14</a> 在负载共享之后，USB 和电池都要经过 U14 才能到 VSYS；充电芯片 U1 接在 U14 前面，所以关机也能充电。v4.26 起 U14 的 ON 由电源键 <a class="ref">SW3</a> 和 ESP32 控制，关机时没人拉高，插 USB 不会开机。</span></li>
+        </ul>
+      </section>
+
+    </div>
+    <aside class="rail" aria-label="本页导航" data-static><div class="toc-box"><h4>本页</h4><ol class="toc"><li><a href="#findings"><span class="n">3.1</span>评审发现</a></li><li><a href="#decisions"><span class="n">3.2</span>设计决定</a></li><li><a href="#notbugs"><span class="n">3.3</span>看起来像错误但不是</a></li></ol></div></aside>
+  </div>
+  <div class="titleblock-wrap" data-auto-foot></div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(() => {
+  const { D, el, review } = APP;
+  const filt = { sev: 'all', st: 'all' };
+
+  function chipRow(host, items, key) {
+    host.innerHTML = '';
+    items.forEach(it => {
+      const b = el('button', { class: 'chip', type: 'button', 'aria-pressed': String(filt[key] === it.k) }, it.label, it.c != null ? el('span', { class: 'c', text: String(it.c) }) : null);
+      b.addEventListener('click', () => { filt[key] = it.k; renderChips(); renderList(); });
+      host.append(b);
+    });
+  }
+  function renderChips() {
+    const sevItems = [{ k: 'all', label: '全部等级', c: D.findings.length }].concat(
+      Object.entries(D.severities).map(([k, v]) => ({ k, label: v.label, c: D.findings.filter(f => f.sev === k).length })).filter(x => x.c));
+    chipRow(document.getElementById('sevChips'), sevItems, 'sev');
+    const stItems = [{ k: 'all', label: '全部状态' }].concat(D.reviewStates.map(s => ({ k: s.k, label: s.label, c: D.findings.filter(f => review.get(f.id).s === s.k).length })));
+    chipRow(document.getElementById('stChips'), stItems, 'st');
+  }
+
+  const sheetTitle = id => (D.sheets.find(s => s.id === id) || {}).title;
+
+  function card(f) {
+    const r = review.get(f.id);
+    const sv = D.severities[f.sev];
+    const seg = el('div', { class: 'seg stseg', role: 'group', 'aria-label': f.id + ' 的状态' },
+      D.reviewStates.map(s => el('button', { type: 'button', 'data-v': s.k, 'aria-pressed': String(r.s === s.k) }, s.label)));
+    const node = el('article', { class: 'fcard', id: f.id, 'data-sev': f.sev, 'data-state': r.s },
+      el('div', { class: 'fhead' },
+        el('div', { class: 'fid', text: f.id }),
+        el('div', null,
+          el('div', { class: 'ftitle', text: f.title }),
+          el('div', { class: 'fmeta' },
+            el('span', { class: 'sev ' + sv.cls, text: sv.label }),
+            f.decided ? el('span', { class: 'tag open', text: '已定 · ' + f.decided }) : null,
+            el('a', { href: APP.sheetFile(f.sheet) + (f.anchor ? '#' + f.anchor : ''), text: '在「' + sheetTitle(f.sheet) + '」中查看 →' }),
+            f.refs.length ? el('span', null, f.refs.map(x => el('a', { class: 'ref', text: x }))) : null)),
+        seg),
+      el('div', { class: 'fbody' },
+        el('div', null, el('h4', { text: '问题' }), f.problem),
+        el('div', null, el('h4', { text: '建议处理' }), f.fix)),
+      el('div', { class: 'fnote' },
+        el('label', { for: 'note-' + f.id, text: '你的意见' }),
+        el('textarea', { id: 'note-' + f.id, rows: 2, placeholder: '写下你的判断、补充资料或不同意的理由（自动保存）' })));
+    const ta = node.querySelector('textarea');
+    ta.value = r.note || '';
+    let t;
+    ta.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => review.set(f.id, { note: ta.value }), 300); });
+    APP.bindSeg(seg, v => { review.set(f.id, { s: v }); node.dataset.state = v; renderChips(); if (filt.st !== 'all') renderList(); });
+    return node;
+  }
+
+  function renderList() {
+    const host = document.getElementById('flist');
+    host.innerHTML = '';
+    const list = D.findings.filter(f => (filt.sev === 'all' || f.sev === filt.sev) && (filt.st === 'all' || review.get(f.id).s === filt.st));
+    if (!list.length) { host.append(el('div', { class: 'empty', text: '没有符合筛选条件的评审项。点"全部等级"和"全部状态"恢复。' })); return; }
+    list.forEach(f => host.append(card(f)));
+    APP.enhance(host);
+  }
+
+  function renderDecisions() {
+    const host = document.getElementById('dlist');
+    host.innerHTML = '';
+    const all = review.decisions();
+    D.decisions.forEach(d => {
+      const cur = all[d.id] || {};
+      const opts = el('div', { class: 'opts', role: 'radiogroup', 'aria-label': d.title });
+      d.options.forEach(o => {
+        const id = d.id + '-' + o.k;
+        const inp = el('input', { type: 'radio', name: d.id, id, value: o.k });
+        if ((cur.pick || d.chosen) === o.k) inp.checked = true;
+        inp.addEventListener('change', () => review.setDecision(d.id, { pick: o.k }));
+        opts.append(el('label', { class: 'opt', for: id }, inp,
+          el('span', { class: 'l' }, o.label, o.rec ? el('span', { class: 'r', text: '推荐' }) : null),
+          el('span', { class: 's', text: o.note })));
+      });
+      const note = el('input', { type: 'text', id: 'dnote-' + d.id, placeholder: '补充说明（可选）', style: 'width:100%;padding:5px 10px;font-size:.88rem', 'aria-label': d.id + ' 补充说明' });
+      note.value = cur.note || '';
+      note.addEventListener('change', () => review.setDecision(d.id, { note: note.value }));
+      host.append(el('div', { class: 'dcard', id: d.id },
+        el('div', { class: 'dtop' }, el('span', { class: 'id', text: d.id }), el('span', { class: 't', text: d.title }),
+          el('a', { class: 'fx', text: d.finding }), d.chosen ? el('span', { class: 'tag open', text: '已定' }) : null, el('span', { class: 'w', text: '原定节点：' + d.when })),
+        opts, note));
+    });
+    APP.enhance(host);
+  }
+
+  function summary() {
+    const lines = ['# 墨水屏监控器评审意见（' + D.meta.rev + '）', ''];
+    D.findings.forEach(f => {
+      const r = review.get(f.id);
+      const st = D.reviewStates.find(x => x.k === r.s).label;
+      lines.push(`- **${f.id}** ${f.title} — ${st}${r.note ? '：' + r.note.replace(/\n+/g, ' ') : ''}`);
+    });
+    lines.push('', '## 设计决定', '');
+    const all = review.decisions();
+    D.decisions.forEach(d => {
+      const c = all[d.id] || {};
+      const o = d.options.find(x => x.k === (c.pick || d.chosen));
+      lines.push(`- **${d.id}** ${d.title}：${o ? o.label : '未选'}${c.note ? '（' + c.note + '）' : ''}`);
+    });
+    return lines.join('\n');
+  }
+  document.getElementById('copyBtn').addEventListener('click', () => APP.copyText(summary(), document.getElementById('copyHost'), '评审汇总已复制'));
+
+  const resetBox = document.getElementById('resetBox');
+  function bindReset() {
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      resetBox.innerHTML = '';
+      const yes = el('button', { class: 'btn', type: 'button', style: 'color:var(--crit);border-color:var(--crit)' }, '清空');
+      const no = el('button', { class: 'btn', type: 'button' }, '取消');
+      resetBox.append(el('span', { class: 'confirm' }, '清空全部状态、意见和决定？', yes, no));
+      yes.addEventListener('click', () => { APP.store.set('review', {}); APP.store.set('decisions', {}); restore(); renderChips(); renderList(); renderDecisions(); document.dispatchEvent(new CustomEvent('review-change')); APP.toast('已清空'); });
+      no.addEventListener('click', restore);
+    });
+  }
+  function restore() { resetBox.innerHTML = '<button class="btn" type="button" id="resetBtn">清空我的标记</button>'; bindReset(); }
+  bindReset();
+
+  renderChips(); renderList(); renderDecisions();
+  if (location.hash) { const t = document.getElementById(location.hash.slice(1)); if (t) setTimeout(() => t.scrollIntoView(), 50); }
+})();
+</script>
+</body>
+</html>

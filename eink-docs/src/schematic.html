@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>原理图 · 墨水屏监控器设计笔记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .sch { margin: 0 0 40px; }
+  .sch-title { font-family: var(--f-display); font-weight: 600; font-size: 1.12rem; margin: 0 0 10px; display: flex; gap: 10px; align-items: baseline; }
+  .sch-title .mono { font-family: var(--f-mono); font-size: .74rem; color: var(--mask); border: 1px solid currentColor; border-radius: 3px; padding: 0 6px; font-weight: 500; }
+  .sch .fig-surface { padding: 10px; }
+  .sch .fig-surface svg { min-width: 760px; }
+  .sch .fig-surface.ext svg { min-width: 720px; }
+  .sch svg.gen text { font-family: "IBM Plex Mono", Consolas, "Microsoft YaHei", monospace; }
+  .sch svg.gen line, .sch svg.gen polyline, .sch svg.gen path, .sch svg.gen circle, .sch svg.gen rect { stroke: #2d312c; stroke-width: 1.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .sch svg.gen .th { stroke-width: 2; }
+  .sch svg.gen .th2 { stroke-width: 3.2; }
+  .sch svg.gen .bd { fill: #fbfaf5; }
+  .sch svg.gen .fl { fill: #2d312c; }
+  .sch svg.gen .pt0 { fill: #fbfaf5; }
+  .sch svg.gen .bx { fill: #fbfaf5; stroke-width: 1.4; }
+  .sch svg.gen .rf { font-size: 10.5px; font-weight: 600; fill: #1d5a3c; }
+  .sch svg.gen .vl { font-size: 9.5px; fill: #62675f; }
+  .sch svg.gen .pn { font-size: 8px; fill: #8a8f86; }
+  .sch svg.gen .pm { font-size: 9.5px; fill: #2d312c; }
+  .sch svg.gen .nt { font-size: 9.5px; fill: #62675f; }
+  .sch svg.gen text.pm, .sch svg.gen text.pn, .sch svg.gen text.rf, .sch svg.gen text.vl, .sch svg.gen text.nt { stroke: none; }
+  .sch svg.gen .nl text { font-size: 9.5px; fill: #1d5a3c; stroke: none; }
+  .sch svg.gen .nl .tag { fill: #e6efe8; stroke: #8fb09b; stroke-width: .8; }
+  .sch svg.gen .nl.pw line { stroke: #985822; stroke-width: 1.4; }
+  .sch svg.gen .nl.pw text { fill: #985822; font-weight: 600; }
+  .sch svg.gen .nl .hit { fill: transparent; stroke: none; }
+  .sch svg.gen .ncx line { stroke: #b0473a; stroke-width: 1.2; }
+  .sch svg.gen .nl, .sch svg.gen .stub, .sch svg.gen .pt { cursor: pointer; }
+  .sch svg.gen .stub { stroke-width: 1.2; }
+  .sch svg.gen .wr { stroke: #2d312c; stroke-width: 1.3; fill: none; cursor: pointer; }
+  .sch svg.gen .wr.hl { stroke: #c2410c; stroke-width: 2.4; }
+  .sch svg.gen .dot { fill: #2d312c; stroke: none; }
+  .sch .fig-surface.ext svg { width: 100%; height: auto; }
+  .sch svg.gen .pt:focus { outline: none; }
+  .sch svg.gen .pt:hover .bx, .sch svg.gen .pt.sel .bx, .sch svg.gen .pt:hover .bd, .sch svg.gen .pt.sel .bd { fill: #f6e6d2; }
+  .sch svg.gen .pt.sel .rf { fill: #b5651d; }
+  .sch svg.gen .hl.stub, .sch svg.gen .nl.hl line { stroke: #c2410c !important; stroke-width: 2.2; }
+  .sch svg.gen .nl.hl .tag { fill: #fde3cc; stroke: #c2410c; }
+  .sch svg.gen .nl.hl text { fill: #9a3412 !important; font-weight: 700; }
+  .sch-notes { font-size: .88rem; color: var(--ink-2); margin: 10px 0 0; }
+  .sch-info:empty { display: none; }
+  .sch-info { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); padding: 12px 14px; margin-top: 10px; display: grid; gap: 6px; }
+  .sch-h { font-size: 1rem; }
+  .sch-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .sch-chip { font: inherit; font-family: var(--f-mono); font-size: .76rem; padding: 1px 7px; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper); color: var(--ink); cursor: pointer; }
+  .sch-chip:hover { border-color: var(--copper); color: var(--copper); }
+  .sch-chip.far { border-style: dashed; }
+  #netTable tr { cursor: pointer; }
+  #netTable td:last-child { font-family: var(--f-mono); font-size: .8rem; word-spacing: .3em; }
+</style>
+</head>
+<body data-sheet="schematic">
+<div class="wrap">
+  <header class="sheet-head">
+    <p class="eyebrow" data-auto></p>
+    <h1>原理图</h1>
+    <p class="lede">按功能分成 6 张图，每张的器件摆放和连线方式照嘉立创 EDA 原理图（V1.0）画，取值、引脚和连接都与前面各页一致。同一张图里的器件用导线连好，跨图的连接用同名端口标签；网络名沿用文档，EDA 里的 +5V、BAT+ 在这里叫 VBUS、VBAT。鼠标移到标签上，所有同名的线一起高亮；点击器件或网络，下方列出它的全部连接。</p>
+    <div class="head-chips" data-auto></div>
+  </header>
+
+  <div class="body">
+    <div class="main wide">
+      <section class="sec" id="read">
+        <h2>怎么读</h2>
+        <ul class="plain">
+          <li>同一张图里的连接都画成导线，导线相交处有<strong>圆点</strong>才相连，没有圆点的交叉不相连。连到别的图的线用<strong>绿色端口标签</strong>，同名即相连；<strong>铜色横杠</strong>是电源（VBUS、VBAT、VSYS_IN、VSYS、3V3、SD_VCC），三横线是地，红色 × 是不接。</li>
+          <li>二极管的三角形指向阴极；MOS 管标了 G、D、S。芯片方框外的小数字是引脚号，标"待核实"的芯片引脚号以规格书为准。</li>
+          <li>主控模组 U2 的引脚和网络直接读<a href="pins.html">引脚页</a>的分配表，两边不会对不上。点击芯片列出它每个引脚接到哪里。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="power-nets">
+        <h2>电源网络</h2>
+        <p>除墨水屏升压产生的 VGH、VGL、VSH、VSL 外，全板只有下面几个电源网络，命名统一：V 开头的是电源轨（VBUS、VBAT、VSYS_IN、VSYS），3V3 是稳压后的逻辑电源，SD_VCC 是 TF 卡的可关断电源。原理图上它们画成铜色横杠，同名即相连，不需要导线。表格由原理图数据生成，改图后自动更新。</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>网络</th><th>电压</th><th>来源与用途</th><th>出现在</th><th class="r">连接数</th></tr></thead>
+            <tbody id="pwrTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sec" id="sheets">
+        <h2>原理图</h2>
+        <div id="schSheets"></div>
+      </section>
+
+      <section class="sec" id="check">
+        <h2>连通性检查</h2>
+        <p>页面渲染时从原理图生成网表，自动和器件清单、引脚表对一遍。改了任何一处数据，这里会跟着变。</p>
+        <div id="schCheck"></div>
+      </section>
+
+      <section class="sec" id="nets">
+        <h2>网表</h2>
+        <p>点击行跳到原理图上对应的网络。</p>
+        <div class="tbl-wrap tall">
+          <table>
+            <thead><tr><th>网络</th><th class="r">连接数</th><th>连接（位号.引脚）</th></tr></thead>
+            <tbody id="netTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+    <aside class="rail" aria-label="本页导航"></aside>
+  </div>
+  <div class="titleblock-wrap" data-auto-foot></div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/schematic.js"></script>
+</body>
+</html>

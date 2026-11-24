@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>概览 · 墨水屏监控器设计笔记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .spec { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 18px; margin: 0; font-size: .94rem; }
+  .spec dt { color: var(--ink-3); }
+  .spec dd { margin: 0; }
+  .dash { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--ink-3); background: var(--sheet); }
+  .dash > div { padding: 14px 16px; border-right: 1px solid var(--rule-2); min-width: 0; }
+  .dash > div:last-child { border-right: 0; }
+  .dash .k { font-size: var(--fs-xs); color: var(--ink-3); letter-spacing: .04em; }
+  .dash .v { font-family: var(--f-mono); font-size: 1.9rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .dash .v small { font-size: .9rem; color: var(--ink-3); }
+  .dash .s { font-size: var(--fs-sm); color: var(--ink-2); }
+  .meter { height: 6px; background: var(--sunk); box-shadow: inset 0 0 0 1px var(--rule); overflow: hidden; margin-top: 8px; display: flex; }
+  .meter i { display: block; height: 100%; }
+  .attn { margin-top: 14px; display: grid; border: 1px solid var(--ink-3); background: var(--sheet); }
+  .attn a { display: grid; grid-template-columns: 3.2em 7.4em minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--rule-2); color: var(--ink); text-decoration: none; font-size: .92rem; }
+  .attn a:last-child { border-bottom: 0; }
+  .attn a:hover { background: var(--ink); color: var(--paper); }
+  .attn a:hover .st { color: inherit; }
+  .attn .id { font-family: var(--f-mono); font-weight: 600; }
+  .attn .st { font-size: var(--fs-xs); color: var(--ink-3); white-space: nowrap; }
+  ul.themes { list-style: none; padding: 0; margin: 0; display: grid; gap: 0; counter-reset: th; }
+  ul.themes li { counter-increment: th; display: grid; grid-template-columns: 2.4em minmax(0, 1fr); gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--rule-2); }
+  ul.themes li::before { content: counter(th); font-family: var(--f-display); font-weight: 900; font-size: 1.35rem; color: var(--ink); line-height: 1.3; }
+  ul.legend { list-style: none; padding: 0; margin: 10px 0 16px; display: grid; gap: 8px; }
+  ul.legend li { display: grid; grid-template-columns: 5.4em minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: .94rem; }
+  @media (max-width: 860px) {
+    .dash { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dash > div:nth-child(2) { border-right: 0; }
+    .dash > div:nth-child(-n+2) { border-bottom: 1px solid var(--rule-2); }
+    .attn a { grid-template-columns: 3em minmax(0, 1fr); }
+    .attn a .sev, .attn a .st { display: none; }
+  }
+</style>
+</head>
+<body data-sheet="overview">
+<div class="wrap">
+  <header class="sheet-head">
+    <p class="eyebrow" data-auto></p>
+    <h1>概览</h1>
+    <p class="lede">横放在支架上，它显示电脑的 CPU、GPU、Claude Code 运行状态，以及时间和室内 CO2 浓度、温湿度。竖着拿起来，它是电子书阅读器：书从 Wi-Fi 在线获取，还能朗读当前章节。这一页汇总项目现状、整体架构、设计原则和修订记录。</p>
+    <div class="head-chips" data-auto></div>
+  </header>
+
+  <div class="body">
+    <div class="main">
+
+      <section class="sec" id="spec">
+        <h2>主要器件</h2>
+        <dl class="spec">
+        <dt>主控</dt><dd><a class="ref">U2</a> ESP32-S3-WROOM-1-N16R8</dd>
+        <dt>屏幕</dt><dd><a class="ref">FPC1</a> 4.26″ 黑白，800×480，219 dpi，SSD1677</dd>
+        <dt>传感</dt><dd><a class="ref">U6</a> PCF8563 · <a class="ref">U7</a> STCC4（CO2）+ <a class="ref">U11</a> SHT40 · <a class="ref">U8</a> SC7A20H</dd>
+        <dt>存储</dt><dd><a class="ref">CARD1</a> TF 卡（SDMMC 1-bit），书离线存放</dd>
+        <dt>声音</dt><dd><a class="ref">U9</a> NS4168 + 8Ω 腔体喇叭</dd>
+        <dt>供电</dt><dd>Type-C + 454261 锂电池（约 1500mAh），<a class="ref">U1</a> TP4056X 充电，<a class="ref">U4</a> RT9080-33GJ5 稳压，<a class="ref">U10</a> CW2015 电量计</dd>
+      </dl>
+      </section>
+
+      <section class="sec" id="progress">
+        <h2>评审进度</h2>
+        <p>这些数字来自你在"评审"和"打样验收"两页做的标记，只保存在这台电脑的浏览器里。</p>
+        <div class="dash" id="dash"></div>
+        <div class="attn" id="attn"></div>
+        <p style="margin-top:14px"><a class="btn primary" href="review.html">开始评审</a> <a class="btn" href="bringup.html">打样验收</a></p>
+      </section>
+
+      <section class="sec" id="arch">
+        <h2>整体架构</h2>
+        <p>电脑端的 Python 常驻程序采集 CPU、GPU 和 AI 数据，同时兼任书库和朗读服务：把书排版成页面图片，把章节合成为语音。ESP32-S3 驱动墨水屏和 I2S 功放，时间由电脑端在通信时一并下发。<a class="ref">U6</a> 在断网或深睡时保持走时；<a class="ref">U8</a> 判断摆放方向，转动设备时也能唤醒 ESP32。</p>
+        <p>电脑与设备之间走 Wi-Fi HTTP，设备用 mDNS 广播 <code>epd-monitor.local</code>。谁发起请求取决于 <a class="fx">F3</a> 的选择：常连时电脑推送，深睡时设备拉取。USB CDC 串口作为备用通道。</p>
+        <figure class="fig">
+          <div class="fig-surface">
+<!--SVG:arch-->
+          </div>
+          <figcaption>点击方框跳到对应章节。上半部分是数据与外设：黑线是数据，绿色虚线是唤醒信号；下半部分是供电链路，棕色线是电源。功放不经过 LDO，直接由 VSYS 供电。</figcaption>
+        </figure>
+        <h3>电压域</h3>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>网络</th><th>电压</th><th>来源</th><th>供给</th></tr></thead>
+            <tbody>
+              <tr><td class="m">VBUS</td><td class="nw">4.75～5.25V</td><td><a class="ref">USB0</a> Type-C</td><td><a class="ref">U1</a> 充电、充电灯 <a class="ref">LED1</a>、<a class="ref">D2</a> → VSYS_IN、<a class="ref">Q1</a> 栅极、USB 检测分压</td></tr>
+              <tr><td class="m">VBAT</td><td class="nw">3.0～4.2V</td><td>电池（经自带保护板）</td><td><a class="ref">U1</a> BAT 端、<a class="ref">Q1</a> D 极、<a class="ref">U10</a> 电量计</td></tr>
+              <tr><td class="m">VSYS</td><td class="nw">USB ≈4.55～4.70V<br>电池 3.0～4.2V</td><td><a class="ref">D2</a> 或 <a class="ref">Q1</a>，汇合成 VSYS_IN 后经 <a class="ref">U14</a>（电源键 <a class="ref">SW3</a> 和 ESP32 控制）</td><td><a class="ref">U4</a> LDO 输入、<a class="ref">U9</a> 功放</td></tr>
+              <tr><td class="m">3V3</td><td class="nw">3.3V</td><td><a class="ref">U4</a></td><td><a class="ref">U2</a>、屏逻辑与升压、I2C 器件、按键上拉、经 <a class="ref">Q2</a> 给 TF 卡。电池低于约 3.5V 后跟随下降</td></tr>
+              <tr><td class="m">VGH / VGL</td><td class="nw">≈ ±20V</td><td>屏内 SSD1677 驱动 <a class="ref">U13</a> <a class="ref">L1</a></td><td>只进屏 FPC</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sec" id="principles">
+        <h2>设计原则</h2>
+        <ul class="themes">
+          <li><span><strong>待机电流就是续航。</strong>墨水屏保持画面不耗电，所以功放关断下拉、方向变化中断、去掉电池分压、静态 IP 快速重连，都是在省深睡和醒来的那点电。</span></li>
+          <li><span><strong>重活放服务端。</strong>排版、字库、语音合成、用量统计都在电脑上做，设备只显示图片、播放 MP3，改排版不用重新烧录。</span></li>
+          <li><span><strong>一个方向传感器换两种产品。</strong>同一套硬件靠摆放方向切换监控器和阅读器，按键跟着方向重新映射。</span></li>
+          <li><span><strong>大电流不过 LDO。</strong>功放直接吃 VSYS，LDO 只管数字部分，低电量时 3.3V 不会被音频拖垮。</span></li>
+          <li><span><strong>让屏自己驱动升压。</strong>板上只放功率器件，开关时序由屏内控制器决定，所以器件值要贴着参考设计取。</span></li>
+          <li><span><strong>先保证能调试。</strong>UART 焊盘、电源和 I2C 测试点、BOOT/RST 按键、插 USB 不睡，都是为了样板出问题时能看到发生了什么。</span></li>
+        </ul>
+      </section>
+
+      <section class="sec" id="about">
+        <h2>怎么读这套图纸</h2>
+        <p>这是<strong>打样之前</strong>的设计：器件已选定，连接关系和主要参数已确定，原理图已有按功能分的 6 张初稿（见原理图页），还没有打样。关键数值旁边标注了它的来源：</p>
+        <ul class="legend">
+        <li><span class="tag calc">计算</span><span>按公式和标称值算出。大多数计算都做成了可以拖动的计算器。</span></li>
+        <li><span class="tag verify">待核实</span><span>来自二手资料、参考项目或经验值，下单前对照规格书确认。</span></li>
+        <li><span class="tag bench">待实测</span><span>只有样板焊好后才能确认，对应"打样验收"页的步骤。</span></li>
+        <li><span class="tag open">待决定</span><span>需要取舍的设计选择。六个决定都已定稿，在"评审"页里可以查看或改选。</span></li>
+        </ul>
+        <p>正文里 <a class="ref">Q1</a> 这类灰底标签是<strong>位号</strong>，详细参数在器件清单页按位号查。<a class="fx">F1</a> 这类红色编号是<strong>评审项</strong>，点击进入评审页。位号与嘉立创 EDA 原理图（V1.0，2026-10-20）一致。</p>
+        <p>结构参考了 <a href="https://github.com/iandchasse/silkscreen-pcb">silkscreen-pcb</a>（同款 4.26″ SSD1677 屏的开源阅读器主板）的硬件说明与设计评审，F1、F2 中关于升压器件的要求转引自该项目文档。</p>
+      </section>
+
+      <section class="sec" id="history">
+        <h2>修订记录</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>版本</th><th>日期</th><th>改动</th></tr></thead>
+            <tbody>
+              <tr><td class="m">v4.45</td><td class="nw">2026-11-06</td><td>第一套 FDM 打印件强度不够，外壳加厚：中框侧壁 1.5 → 2.0mm（两条长边离屏幕玻璃只有 0.3，往外加，外形高 66 → 67mm；两条短边往里加，宽仍 115，Type-C 接口前端正好落在开孔里），后盖 1.2 → 1.6mm（平板刚度约翻倍），整机 115 × 67 × 9.9mm。亚克力面板 DXF 跟着改成 115 × 67，透光区位置不变（上下边距 4.66 → 5.16）。键帽键身随外壁自动变长，TF 卡口深 0.5。</td></tr>
+              <tr><td class="m">v4.44</td><td class="nw">2026-11-06</td><td>外壳 v1 定稿（PCB1 2026-11-06 已打样），尺寸和 enclosure/eink-case.scad 同一套，布局页的叠层、尺寸图、按键结构图、3D 视图和外壳一节全部重画：面板从“前壳一体面框”改成 1.5mm 亚克力（透明背印白框，或白色亚克力切穿开窗），屏幕贴在亚克力背面；中框只剩四周侧壁、4 个螺丝柱和两头粘接台；后盖 4 颗沉头螺丝从背面拧入（天线旁那颗 M2 尼龙），整机 8.85 → 9.5mm（元件区仍限高 4mm）。喇叭出声槽从 Type-C 那头挪到底边（3 条 0.9 × 2.7，对准 LS1；原位置会和右下角螺丝柱重叠），底边对着 U7/U11 加 3 条侧面通风槽。翻页翘板去掉支点筋（和法兰片会互相顶死），以另一端的法兰为支点；键帽法兰片改到开关本体上方（离 PCB 底面 3.0～5.0），下面 45° 斜面，键帽内表面离推杆 0.1，不再加凸点。Type-C 开孔 9.7 × 3.9，上半圈由后盖伸下来的舌头补上（中框开孔顶上原来只剩 0.4mm）；后盖加 Type-C 顶面压块。充电灯窗改 Ø1.5 圆孔并往远离 Type-C 挪 2.3mm，插着线时 USB-C 插头胶壳挡不住。外壳分手板（键帽间隙 0.2）和 FDM（0.3）两版。验收第 2 步改成贴 R33 或按住 SW3 上电。</td></tr>
+              <tr><td class="m">v4.43</td><td class="nw">2026-11-06</td><td>关机电流复核：长按关机后还在耗电的是电池保护板、U1 BAT 脚反向电流、D2 反向漏电、U14 关断电流、U6 和 U10，其中电量计 U10 一直工作约 15µA，占一半以上。改为关机前由固件写 MODE = 0xC0 让 U10 睡眠（约 0.5µA），开机唤醒后没插 USB 时快速重估一次 SOC。关机电流由约 20～35µA 降到约 6～15µA，每月约 4～11mAh。硬件不改。代价是关机期间（包括关机充电）不跟踪电量。电源页、固件页、功耗页、器件清单、原理图注释和验收项同步。</td></tr>
+              <tr><td class="m">v4.42</td><td class="nw">2026-11-02</td><td>不设测试点：原理图、平面图、3D 视图和器件清单里的 TP1～TP8 全部去掉。布局页的“测试点”一节改成“测量点”，列出每项测量直接点哪颗器件的焊盘（电容两端、R33 的空焊盘、R4/R5、H3），打样验收里引用 TP 的步骤一起改。</td></tr>
+              <tr><td class="m">v4.41</td><td class="nw">2026-11-02</td><td>按新导出的坐标文件 PickAndPlace_PCB1_1_2026_11_02 (1) 和 PCB_PCB1_1_2026-11-02 (1).pdf 核对 EDA 改动：<a class="ref">R21</a> 已改 10k（C25804）；<a class="ref">R33</a> 已加，在 U14 正下方约 4mm；<a class="ref">C32</a> 已挪到模组上沿、C6 左边，离 EN 脚约 4mm。FPC1 右边那列电容（C16、C17、C20～C22、C34、C35）和 R25 往板边挪了 1.14mm。位置已同步；TF 卡座本体中心改用装配图外框中心 y 54.5（坐标文件的中心含上方焊盘）。<b>还要改</b>：EDA 的 BOM 里 R33 绑了 C21189、数量 1，会被贴上，要设成不贴片；R4/R5、R6～R10 与 R14、R11、R15/R16、R19、R25、R30、R31、R32 仍没有 C 号，R28/R29 有型号无 C 号。</td></tr>
+              <tr><td class="m">v4.40</td><td class="nw">2026-11-02</td><td>C7（U1 BAT 脚的 10µF）EDA 里在电池座旁、离 BAT 脚约 33mm，U1 旁放不下，定为保持现状：插着电池时电池本身就是大电容，TP4056 是线性充电、环路慢，这段线的电感影响很小。BAT 走线沿途能挤出 0402 位置的话可补 4.7～10µF。新增验收项 c34：拔电池插 USB 看 BAT 脚有没有 MHz 振铃。</td></tr>
+              <tr><td class="m">v4.39</td><td class="nw">2026-11-02</td><td>EN 脚旁不另加 100nF，改为把 <a class="ref">C32</a>（1µF，EN 的 RC 延时电容）从 RESET 键旁挪到 EN 脚旁 2～3mm 内，地端就近打过孔，同时当 EN 的去耦用；R27 可以不动，RESET 到 EN 的线照常保留。EDA 里待挪。</td></tr>
+              <tr><td class="m">v4.38</td><td class="nw">2026-11-02</td><td>平面图和 3D 视图的器件位置按嘉立创坐标文件 PickAndPlace_PCB1_1_2026_11_02 整体重新同步（107 个器件，56 个和原来差 0.8mm 以上，最多 32mm）。换算：x + 8.5、y 取反；朝向用 EDA 转角（按键和 FPC 座保留原朝向）；按键本体中心按钻孔图的定位孔（封装中心 x 偏 0.25、y 偏 0.5）。补上晶振负载电容 <a class="ref">C41</a>。定位孔按钻孔图改成实际的 2 个：MH1 (72.38, 25.91)、MH2 (34.28, 52.55)，后盖压柱、器件清单跟着改。测试点 TP1～TP8 EDA 里没有，自动挪到不压器件的空位；功能区外框按成员器件重算；电源键外围 D7、R30、U15、R31、R32 划到电源键区，C7 划到电源区；TF 卡座模型深度 15 → 14.4。L3 电源层图的 VBUS 区和电源线按新位置重画（示意）。布局说明按新位置改写。<b>新发现</b>：① C7（U1 BAT 脚的 10µF）在 EDA 里放在电池座旁边，离 BAT 脚约 33mm，建议在 U1 旁补一颗；② 按键封装是 SW-SMD_EVQPUD02K（J 形弯脚的焊盘，外沿 6.6），器件是直脚的 EVQPUC02K（规格书焊盘外沿 6.8），脚仍全部落在焊盘上，能焊，要完全一致可把 BOM 换成同为 2.2N 的 EVQPUD02K；③ ON 线从 U14 到底边的 D7、R30 约 20mm，1M 下拉的高阻节点，远离开关节点和喇叭线。</td></tr>
+              <tr><td class="m">v4.37</td><td class="nw">2026-11-02</td><td>按 PCB_PCB1_1_2026-11-02.pdf（钻孔图和装配图）实测，<b>更正 v4.36 的结论</b>：文档里的按键坐标是旧的，还把封装框（含推杆）的中心当成了开关本体中心。实测 4 个按键 x 为 SW6 23.87、SW1 35.91、SW2 43.91、SW3 55.48，开关本体中心离板边 2.15（不是 1.53），本体前沿在板内 0.40，推杆伸出板边 0.60。EVQPUC02K 的定位孔在封装里已经画了，靠板边那个孔的孔边离板边约 0.39，<b>没有切到板边，不用换 EVQPUA02K</b>。真正的问题反过来：推杆顶端离键帽内表面约 0.75，够不着，键帽内侧对着每个推杆加 3.0 × 1.8、高 0.65 的凸点（3D 视图和按键结构图已画上）。按键上拉 R22～R24 的位置一起更正；SW1、SW2 中心距 8.0，SW6 到 SW1 12.0，翘板中心 x 39.9，外壳开孔位置跟着变。R33 的建议位置改成紧贴 U14 的 1～3 脚一侧（原来建议的 D7 旁边是按旧坐标说的，EDA 里 D7 在底边，离 C39 很远）。<b>注意</b>：平面图和 3D 视图里其他不少器件也还是 10 月下旬的旧坐标（例如电源键外围 D7、U15、R30～R32，传感器 U8、X1），要从 EDA 导出坐标文件整体重新同步。</td></tr>
+              <tr><td class="m">v4.36</td><td class="nw">2026-11-02</td><td>侧键和电源键按松下 EVQPU 规格书（EVQPUC02K）复核，3D 视图、平面图、按键结构图和外壳开孔都跟着改。本体 4.7 × 3.5 × 1.65（原来按 TS24CA 画成 6 × 3.5 × 3.5），推杆宽 2.6、厚 1.4、伸出本体 1.0；2.2N、行程 0.3、10 万次。键帽中心高度从离 PCB 底面 3.0 降到 2.15（PCB 1.2 + 推杆中心 0.95），键帽上沿离后盖接缝从约 0.5 变成约 1.45；按 EDA 坐标推杆顶端离键帽内表面约 0.13。键帽法兰片伸进壳内 0.6、会盖到板边，改成只做在 PCB 顶面以上。<b>发现问题</b>：C 型底部有两个 Ø0.65 定位柱，PCB 要开 Ø0.75 孔，按现在的坐标靠推杆那个孔会切到板边约 0.25mm；建议换不带定位柱的 EVQPUA02K（同 2.2N、同焊盘），或把开关往板内挪 ≥0.55 并在键帽内侧加凸点（待定）。另外：原理图补画晶振负载电容 <a class="ref">C41</a>；供电页充电灯限流 R19 的阻值笔误 1k 改成 2k；R33 在平面图上给出建议位置（D7 和 C38、C39 之间）。</td></tr>
+              <tr><td class="m">v4.35</td><td class="nw">2026-11-02</td><td>开发期免按键定为方案 A，做成预留焊盘：新增 <a class="ref">R33</a>（0603 0Ω，默认不贴），接在 ON 和 VSYS_IN 之间，放在 R30 和 C39 之间。调试期贴上等于一直按着电源键，量产不贴。必须接 VSYS_IN，不能接 VSYS（接 VSYS 会一开机就自锁）。器件清单标为不贴，客户版导出的嘉立创 BOM 不包含它。EDA 里要加这颗件，属性设为不加入 BOM。</td></tr>
+              <tr><td class="m">v4.34</td><td class="nw">2026-11-02</td><td>Q1 栅极下拉 <a class="ref">R21</a> 由 100k 改 10k，PCB 不用动，和板上其他 10k 同料号。拔 USB 后 Q1 导通前由体二极管供电的这段从约 0.5～1 秒缩短到约 0.1～0.2 秒，低电量时欠压复位（等于断电）的风险基本去掉；D2 的反向漏电在栅极上抬起的电压也只有原来的约 1/7。代价只是插着 USB 时多耗约 0.5mA。EDA 里要跟着改值和料号。</td></tr>
+              <tr><td class="m">v4.33</td><td class="nw">2026-11-02</td><td>按嘉立创 EDA 原理图 V1.0 打样前核对，文档跟着 EDA 改（下面各页和器件清单都已同步，版本记录里的旧位号保持当时的写法）。位号对照：负载共享管 U5→<a class="ref">Q1</a>，SHT40 U16→<a class="ref">U11</a>、它的去耦 C41→<a class="ref">C40</a>，CT 电容 C36→<a class="ref">C38</a>，U14 输入电容 C37→<a class="ref">C39</a>，VSYS 储能 C39、C40→<a class="ref">C36</a>、<a class="ref">C37</a>，菜单键 SW3→<a class="ref">SW6</a>，电源键 SW4→<a class="ref">SW3</a>，RST、BOOT 键 SW5、SW6→RESET、BOOT；补记 <a class="ref">C41</a> 18pF（X1 负载电容）。侧键和电源键按 EDA 由 TS24CA 换成 EVQPUC02K，按压力和键帽尺寸待按规格书复核；按键接法按 EDA：GPIO7 菜单 SW6、GPIO6 上一页 SW1、GPIO5 下一页 SW2，固件不再对调 KEY1、KEY2。CT 电容按 EDA 实际的 2.2nF 重算：VSYS 约 5～9ms 上升、冲击电流约 30mA，原来"3V3 比 EN 延时慢"的顾虑没有了。D2 按 EDA 是 DSS34（SOD-123），C3、C4 是 0805，SHT40 料号是 SHT40-AD1B-R2（C2909890）。核对中发现电源键接错：SW3 的 2、4 脚接地、1 脚接 VSYS_IN，平时 PWR_KEY 常接 VSYS_IN 关不了机，按下还会把 VSYS_IN 短到地；EDA 已改成 1、3 脚接 PWR_KEY、2、4 脚接 VSYS_IN。长按开关机方案复核：补写烧录、复位、下载模式时由谁拉着 ON；建议 R21 改 10k、ON 对地预留 1µF 位，开发期免按键的跳线或 +5V 电阻方案，这三项待定；固件补"插着电脑不深睡""深睡前确认 hold""开机先查电量""开机按压松手后才算关机""满 3 秒局刷提示"。新增验收项 c31～c33。</td></tr>
+              <tr><td class="m">v4.32</td><td class="nw">2026-10-30</td><td>LDO <a class="ref">U4</a> 从赫尔 HE9073A33M5R 换成立锜 RT9080-33GJ5。TSOT-23-5 引脚和原来相同（1 VIN、2 GND、3 EN、4 NC、5 VOUT），EN 照旧接 VSYS 常开，PCB 和 EDA 连线都不改。电流上限 500mA → 600mA；压差从约 1Ω 降到约 0.52Ω（最大约 0.88Ω），Wi-Fi 发射时 3V3 多出约 0.17V 余量（<a class="fx">F7</a>）；静态电流从约 0.3µA 升到典型 2µA，深睡底电流按约 57µA 算。供电页的结温和低电量计算器、功耗页、架构图、原理图、器件清单跟着改。低电量门限暂不改，样板实测后再定。</td></tr>
+              <tr><td class="m">v4.31</td><td class="nw">2026-10-30</td><td>电源键的关机处理补漏，硬件不改。提前松手的路径原来只写"拉低 GPIO4"，但 GPIO4 已经 <code>gpio_hold_en</code>，必须先 <code>gpio_hold_dis</code> 再拉低，否则关不掉，供电页和固件页一起改。关机前等 EPD_BUSY 变低、给 SSD1677 发深度睡眠命令后再断电，避免关机画面残缺。开机数 3 秒期间不写 NVS 和 TF 卡。供电页 LDO 一节还留着 v4.26 之前"拨 SW4 断电"的说法，改成长按 3 秒关机。打样验收第 10 步（睡眠与唤醒）加一项：深睡期间测 U14 的 ON，确认 PWR_HOLD 的保持没有丢。</td></tr>
+              <tr><td class="m">v4.30</td><td class="nw">2026-10-27</td><td>姿态传感器 <a class="ref">U8</a> SC7A20H 按规格书 v0.7 逐脚重新核对：EDA 原理图 12 个脚全部正确（SDO 接高为 0x19、4 脚 NC 接地、11 脚 NC 悬空、CS 接高）。外设页改正两处：原来写的"敲击寄存器和 LIS2DH 一样"不对，SC7A20H 的 0x38～0x3D 是 CLICK_CRTL_REG、CLICK_SRC（直接给出敲击次数）和四个打包的 CLICK_COEFF，0x1F 也和 LIS2DH12 不同，固件不能套 ST 驱动、不能写保留区；6D 两种模式的解释和 ST 不一致，方向唤醒改为每次睡前只打开当前方向以外的中断，不管实际语义如何都不会唤醒循环（<a class="fx">F6</a>）。补充：中断默认高电平有效，传感器复位后 INT1 为低会立刻唤醒，固件醒来先检查 0x25；识别要同时读 0x0F = 0x11 和 0x70 = 0x28；功耗按规格书数值更正；<a class="ref">C24</a> 要放在 3 脚和 7 脚之间 1～2mm 内（EDA 里约 4.2mm，偏远）。固件约定、打样验收第 10 步（睡眠与唤醒）和器件清单跟着改。手头规格书是带 PRELIMINARY 水印的 v0.7，拿到 v1.1 再核对 6D 和敲击两处。硬件接线不用改。</td></tr>
+              <tr><td class="m">v4.29</td><td class="nw">2026-10-26</td><td>去掉 v4.28 的麦克风：U16（LMD4737T261）、R33、C41、密封圈 ST3、后盖进声孔和 F19、F20 一起撤掉，EDA 里本来就没加。GPIO3 又空出来，GPIO44 还给 UART0 的 RX，调试焊盘 <a class="ref">H3</a> 按 EDA 改成 RX、TX 两个焊盘（在 FPC1 上方），串口又能烧录；功放不用再让出 I2S0；长按菜单键恢复为阅读模式下开始或停止朗读。温湿度传感器 AHT20 换成 CO2 传感器 <a class="ref">U7</a> STCC4-D-R3（Sensirion，热导原理，LGA-8 4 × 3 × 1.17mm，地址 0x64），配一颗 <a class="ref">U16</a> SHT40-AD1B-R3（地址 0x44，嘉立创 C2848306）做温湿度补偿，接在 STCC4 自带的 I2C 主口 SDA_C、SCL_C 上，不上主总线、不加上拉；<a class="ref">C18</a> 改为 U7 去耦，新增 <a class="ref">C41</a> 100nF 给 U16。两颗都放在原 AHT20 的隔热岛上，后盖通风槽不变。STCC4 立创商城没有货，外购后手焊，嘉立创贴片时留空。单次测量模式下桌面每 60 秒测一次，平均约 17µA；睡眠 1µA，深睡底电流表的 U7 一项跟着改。外设页的温湿度一节改写为 CO2 一节（接法、读取流程、自校准和预处理），I2C 地址表、原理图 SCH 5、器件清单、引脚表、架构图、固件页、布局页、功耗页和打样验收同步。新位号：U16、C41 借用麦克风撤掉后空出的号，EDA 里要跟着加。</td></tr>
+              <tr><td class="m">v4.28</td><td class="nw">2026-10-26</td><td>新增麦克风 <a class="ref">U16</a>（聆麦声学 LMD4737T261-OAC02，嘉立创 C19267425），用于阅读时按住说话、语音提问。按规格书 V1.1 核对：单比特 PDM 输出、顶部进音（元件面朝后盖，正好对着后盖开孔收音），1 GND、2 L/R、3 GND、4 CLK、5 DATA、6 VDD。CLK 接 GPIO3（模组 15 脚，原来空着），模组端串 <a class="ref">R33</a> 33Ω；DATA 接 GPIO44（模组 36 脚，原 UART0 的 RX）；L/R 接地选左声道。PDM 接收只有 I2S0 支持，功放改用 I2S1。规格书没给睡眠电流，VDD 接 TF 卡的可关断电源 SD_VCC，旁边 <a class="ref">C41</a> 100nF，平时随 Q2 关断、不耗电，也不再占 GPIO（<a class="fx">F19</a>）。调试接口 <a class="ref">H3</a> 由 4P 排针改成 TX、GND 两个贴片焊盘，烧录只走原生 USB。后盖在进音孔正上方开 Ø1.0～1.5mm 的孔，中间夹密封圈 <a class="ref">ST3</a>；背面可能被手或支架挡住，进声孔位置待定（<a class="fx">F20</a>）。按键交互暂定为：阅读模式下长按菜单键按住说话，朗读改到菜单里选。原理图（SCH 6 加麦克风，SCH 3 改 H3）、器件清单、引脚表、架构图、外设页、引脚页、固件页、布局页和打样验收同步。新器件位号避开文档和 EDA 已用的位号（EDA 里 C36～C39 的用途和文档不同，C40 在文档里是 VSYS 储能），EDA 里要跟着加；3D 板和平面图里还没有画 U16。</td></tr>
+              <tr><td class="m">v4.27</td><td class="nw">2026-10-23</td><td>喇叭座 U11（MX1.25 卧贴，7.5×5.25mm）去掉，改成两个贴片焊盘 <a class="ref">H4</a>，放在电源键和喇叭之间、靠下板边，喇叭线直接焊上、根部点胶。腾出来的位置放充电芯片 <a class="ref">U1</a> 和 <a class="ref">C1</a>、<a class="ref">C8</a>、<a class="ref">C7</a>、<a class="ref">R20</a>，<a class="ref">D2</a> 也挪到 <a class="ref">U5</a> 旁边：VBUS 收成 Type-C 左边一块，L3 上不用再拉一条带穿过屏升压电感下方，从中间走 L4 的 I2S、按键线都不用跨分界。充电芯片原来的位置让给 TF 卡电源开关 <a class="ref">Q2</a>、<a class="ref">R14</a>、<a class="ref">R15</a>、<a class="ref">C27</a>，它们腾出来的地方放电源键外围 <a class="ref">D7</a>、<a class="ref">U15</a>、<a class="ref">R31</a>、<a class="ref">R32</a>，紧挨 U14。U14 的软启动电容 <a class="ref">C36</a> 由 1nF 改成 10nF（用手头的料）：开启约 40ms，冲击电流约 15mA。TF 卡电源开关的 <a class="ref">C27</a> 由 47nF 改成 100nF（和其他 100nF 同一种料）：Q2 约 1ms 导通，冲击电流约 50mA，固件打开卡电源后改为等 ≥5ms 再初始化卡。电源键或门 <a class="ref">D7</a> 选定安世 BAV70,215（SOT-23）。时钟 <a class="ref">U6</a> 的 VDD 从 3V3 改接电池 VBAT（<a class="ref">C23</a> 跟着改）：原来长按关机后 3V3 没电，RTC 停走，再开机不联网就没有正确时间；现在关机也走时，约 0.25µA。U14 的 ON 下拉 <a class="ref">R30</a> 由 100k 改成 1M：开机期间 PWR_HOLD 经 D7 一直有电流流过它，100k 时约 27µA，1M 时约 2.7µA；功耗页的深睡电流表补上这一项和 TPS22917 的约 0.5µA，深睡底电流约 38～70µA。VSYS 储能 U12（100µF / 6.3V 聚合物钽）换成 <a class="ref">C39</a>、<a class="ref">C40</a> 两颗 22µF / 16V X5R 0805（三星）：设备以阅读为主、只偶尔小音量读人声，用不上 100µF，换掉后去掉了钽电容最大 63µA 的漏电，深睡电流更稳。原理图、器件清单、3D 板、平面图、L3 分区图、叠层图和布局页同步；EDA 里要跟着改。</td></tr>
+              <tr><td class="m">v4.26</td><td class="nw">2026-10-22</td><td>取消拨动开关，改成长按电源键 3 秒开关机，关机前能把关机画面刷到墨水屏上。电源开关 <a class="ref">U14</a> 由 AO3401 换成负载开关 TPS22917（SOT-23-6，开启时静态电流 0.5µA，CT 接 <a class="ref">C36</a> 1nF 软启动约 4ms，QOD 接 VOUT 关断放电，新增输入电容 <a class="ref">C37</a> 10µF）；U14 的 ON 由 <a class="ref">D7</a> BAV70 把电源键 <a class="ref">SW4</a>（改用 TS24CA，和侧键同型号，放原拨动开关位置）和 ESP32 的 PWR_HOLD（GPIO4）"或"起来，<a class="ref">R30</a> 改成 100k ON 下拉；<a class="ref">U15</a> 2N7002 把按键转成 PWR_KEY_N 给 GPIO1（<a class="ref">R32</a> 10k 上拉，<a class="ref">R31</a> 100k 按键下拉）。v4.25 的 R31/C36 缓启动由 CT 软启动代替。键帽 <a class="ref">KC3</a> 由拨钮改成和壳面齐平的圆键帽，总开关结构图去掉；原理图、器件清单、引脚表、3D 板和外壳、尺寸图、电源页、布局页、引脚页、固件约定、调试步骤同步。EDA 里要跟着改。原理图里这部分按"默认关 / ESP32 保持 / 按键开机 / 读按键"分块加虚线框，D7（BAV70）拆成两个二极管符号画，ON 怎么被控制一眼能看出来。</td></tr>
+              <tr><td class="m">v4.25</td><td class="nw">2026-10-22</td><td>总开关加缓启动：SW4 的 2 脚和 U14 栅极之间串 <a class="ref">R31</a> 100k，栅源之间并 <a class="ref">C36</a> 100nF（和 R30 并联）。U14 约 3ms 后开始导通、几毫秒内打开，VSYS 上约 120µF 的电容不再瞬间从电池充电，避免电池保护板误动作，开关抖动也被滤掉；关机变成约 0.1s 后断开。开机时 R30、R31 分压，VGS ≈ −0.91 × VSYS_IN，电池 3.0V 时仍有约 −2.7V。SW4 那一侧的新网络叫 PWR_SW。原理图、器件清单、电源页、3D 板（U14 上方空位）和调试步骤同步；EDA 里还要加这两颗，EN 脚旁待加的 100nF 位号顺延。</td></tr>
+              <tr><td class="m">v4.24</td><td class="nw">2026-10-22</td><td>电源层按实际 PCB 改：层号改用 EDA 的顺序（L1 元件面、L2 完整地、L3 电源、L4 朝屏面，原来文档是反过来的）；L3 整层铺 3V3，只在 Type-C 到充电芯片 U1 之间挖一块 VBUS，不再有 VSYS 块，VSYS、VSYS_IN、VBAT 都靠 L1 上 1～1.5mm 的宽线。布局页的分区图重画（3V3 底色 + VBUS 块 + L1 电源走线，隔热岛按新槽位），叠层表、L1/L4 走线规则、布局要点、各功能区的摆放说明都改成 EDA 里的实际位置（如 LDO 在 U5 左下方、功放右上方）。VBUS 块的边界是按器件位置画的示意，以 EDA 铺铜为准。</td></tr>
+              <tr><td class="m">v4.23</td><td class="nw">2026-10-22</td><td>布局页的 3D 视图和平面图按嘉立创 EDA 的 PCB（PCB_PCB1_2026-10-22.pdf）重画：99 个元件的位置取自装配图里的外框中心，朝向按外框横竖判断，尺寸按 EDA 的 3D 模型（SW5/SW6 3.9×3、U10 3×2、U6 4.9×4、U5/U14 2.9×1.6、LED1 1.6×1.1）；板框按 EDA：96.52 × 62.10，缺角 54.48 × 43.05，Type-C 处小舌片伸出 2.0（y 39.12～50.54），外角 R2；AHT20 隔热槽按 EDA 截图量（x 12～19.1、y 45.3～58.1）。EDA 里还没有的器件放在不压元件的空位上：定位孔 MH1 挪 1mm、MH2 原位、MH3 挪 3.75mm，MH4 原位附近已被功放、卡座、总开关和喇叭占满，暂放到底边窄条 (58, 55)，待定；测试点 TP1～TP5 挪到电源区附近的空位，喇叭本体 LS1 放在右下角空腔。功能区框按新位置重算，R4、R5、R11、R28、R29 归到射频与主控区，U5、R21 归到 USB 输入区。平面图底边侧键顺序改为 SW3 · SW1 · SW2（和 EDA 一致）。尺寸图跟着自动更新。还没跟上的：L2 电源层分区图和布局页里描述旧位置的文字（如 LDO 在功放下方），仍是文档原来的建议布局。</td></tr>
+              <tr><td class="m">v4.22</td><td class="nw">2026-10-22</td><td>原理图页 6 张图全部按嘉立创 EDA 原理图的摆放和连线方式重画，和 EDA 对着看位置一致：Type-C 两边出脚、R2/R1 绕线和 VBUS 横线上的 C34、C35、D3；TP4056 左边 R20、C1、C8，右边充电灯和电池座；负载共享、U14 和 LDO 排成一行，SW4 在 U14 上方；模组按 EDA 三边出脚（上 41～27、下 1～14、右 26～15），信号用竖排标签，右边是 BOOT、USB 检测和 EN 三组；墨水屏那张改成引擎画（原来复用墨水屏页的图），左边升压电路、右边 FPC1 和两列电容；电量计在 I2C 总线上方，三颗传感器挂在总线下面，按键在右上；功放在上、TF 卡在下，卡座引脚在右边，上面一排上拉。原理图里补上了 EDA 有的 USB0 外壳脚 12～15、电池座和喇叭座的固定脚、FPC1 的 25/26、TF 卡座 10～13。网络名沿用文档（EDA 的 +5V、BAT+ 在这里叫 VBUS、VBAT）。器件、网络和连通性检查不变：109 个器件、66 个网络全部连通。墨水屏页的驱动图不变。</td></tr>
+              <tr><td class="m">v4.21</td><td class="nw">2026-10-22</td><td>总开关按 EDA 原理图同步：P-MOS 位号 Q3 → <a class="ref">U14</a>，拨动开关 S → <a class="ref">SW4</a>；栅源电阻 <a class="ref">R30</a> 从 10M 改 1M（开机时约 4.2µA）；SW4 接法改为 2 脚接 PWR_G、3 脚接地开机、1 脚悬空，关机时由 R30 把栅极拉到 VSYS_IN（原来是 1 脚接地、3 脚接 VSYS_IN），拨钮的"开机一头"跟着改成接通 2、3 脚的那一头；建议 1 脚也接 VSYS_IN，关机时栅极由开关直接钳住。SW4 型号保留 MK-12C02-G015：EDA 的 BOM 里现在是 G020，拨杆长 0.5mm，会顶出拨钮 <a class="ref">KC3</a> 的表面，两者焊盘相同，下单前换成 G015。走线说明里总开关只剩 PWR_G 一根细线。电源页、器件清单、原理图页、布局页、总开关结构图、L2 分区图跟着改；v4.18、v4.19 两条修订记录保留当时的位号。</td></tr>
+              <tr><td class="m">v4.20</td><td class="nw">2026-10-21</td><td>不再接天气服务和 NTP：设备不直接访问外网，时间改由电脑端在响应里下发（Unix 时间戳），写入 <a class="ref">U6</a>，电脑离线时靠 U6 走时；桌面模式不再显示天气。架构图去掉"天气 API · NTP"方框，概览、墨水屏页、固件页、外设页、评审页的相关描述跟着改。硬件不变。</td></tr>
+              <tr><td class="m">v4.19</td><td class="nw">2026-10-21</td><td>总开关拨钮 <a class="ref">KC3</a> 从下沉改成齐平：拨钮面和壳面齐平（原来低 0.2mm），三道竖纹凸出壳面 0.2mm，指腹搓一下就能拨，不用指甲。凹槽、长孔、柄、插孔、挡片尺寸不变。代价是比下沉的更容易碰到，验收第 11 步加一项：手握、放支架、装包里各试一次会不会误拨。3D 视图、总开关结构图、外壳开孔侧视图、器件清单、布局页说明跟着改。</td></tr>
+              <tr><td class="m">v4.18</td><td class="nw">2026-10-21</td><td>总开关改 P-MOS 接法：新增 <a class="ref">Q3</a> AO3401（S 极接 VSYS_IN、D 极接 VSYS）和栅源电阻 <a class="ref">R30</a> 10M，拨动开关 <a class="ref">S</a> 换成 MK-12C02-G015，只接 Q3 栅极：2 脚公共端接 PWR_G，1 脚接地开机，3 脚接 VSYS_IN 关机。开关上不再有电流，额定电流和触点电阻都不是问题；Q3 放在 U5 和 VSYS 块之间，原来 VSYS_IN 下到底边再从 L1 回来的宽线取消，Q3 → VSYS 块改走约 7mm 的 L1 宽线，L2 分区图跟着改。低电量计算器计入 Q3 的 0.07Ω（原来没算开关触点电阻），3V3 最低点约低 0.03～0.06V，门限不变。拨钮 KC3 按 MK-12C02 的拨杆（1.3 宽、伸出 1.5、行程 1.5）改尺寸：柄 2.4 × 1.8、长孔 4.2 × 2.0、插孔 1.4 × 1.2 深 1.55、挡片 7.0 × 2.6 × 0.4；布局页尺寸图一节新增总开关结构图。原理图、器件清单、电源页、布局数据（3D 视图、平面图）、验收第 4 步跟着更新。</td></tr>
+              <tr><td class="m">v4.17</td><td class="nw">2026-10-21</td><td>布局页尺寸图一节新增按键结构图，两个剖面：A-A 在键帽中心高度平行于 PCB 剖开，画出翻页翘板 KC1、菜单键 KC2、支点筋、法兰片、连接腿、开关按杆和侧壁开孔；B-B 过 SW1 中心垂直于板边剖开，标出键帽中心离屏幕面 5.45、键帽高 3.2、上沿离后盖接缝 0.6。图上 8 个编号对应文字说明；开关按 TS24CA 画，按杆伸出量要对照规格书，够不到就在键帽内侧加凸点。尺寸由 tools/dims.js 从布局数据算出，和 3D 视图的键帽一致。</td></tr>
+              <tr><td class="m">v4.16</td><td class="nw">2026-10-21</td><td>侧键 <a class="ref">SW1</a>～<a class="ref">SW3</a>（TS24CA）按规格书更正：按压力 160 ± 50gf（原文写的 100～130gf 不对）、行程 0.15mm，寿命按实购批次 5 万次。下一页键磨损最快，每天翻 100 页约 1.4 年到额定寿命，打样和自用够用，量产或重度使用时换 ≥10 万次的料。固件约定新增一条：按键 20～30ms 消抖，两次短按翻页至少间隔 200ms，防止开关老化后一次按压翻两页。器件清单、布局页按键说明跟着改。</td></tr>
+              <tr><td class="m">v4.15</td><td class="nw">2026-10-21</td><td>电源层 L2 分三块：3V3 做底，切出 VSYS（功放 U9、U12、C9 一块）和 VBUS（USB0 一块，沿 y 38～40.4 一条带到充电芯片 U1）；天线净空区和 AHT20 隔热岛不铺。3V3 上下两半靠左边 x 63～70.6 的通道连通。S → VSYS 块的一段走 L1（L4 上 U4 夹在 MH4 和喇叭之间放不下），VSYS_IN、VBAT 在 L4 走 1～1.5mm 宽线；1oz 铜 1.5mm 宽、40mm 长约 13mΩ，1A 时压降约 13mV。LDO <a class="ref">U4</a> 和 <a class="ref">C9</a>、<a class="ref">C10</a> 从模组左侧挪到功放 <a class="ref">U9</a> 下方、总开关 <a class="ref">S</a> 上方（MH4 右侧），VSYS 从 S 到 U4、U9、U12 都在 10mm 以内；有了整层 3V3，原来"LDO 贴着模组缩短 3V3 走线"的理由不再成立。右下角喇叭位置不占用。布局页新增"L2 电源层分区"图（tools/l2.js 生成）和"L1、L4 走线规则"一节（L1 只走慢信号、缺角两边 2.5mm 内不走线、过孔盖油；L4 的 SD 时钟、USB、屏升压、功放输出、晶振、I2C、散热焊盘），布局优化表、叠层表、布线要点、3V3 稳压功能区和叠层图跟着更新。</td></tr>
+              <tr><td class="m">v4.14</td><td class="nw">2026-10-21</td><td>VSYS 储能电容 U12 定为 T55B107M6R3C0040（Vishay vPolyTan 聚合物钽，100µF/6.3V，B 壳 3528，高约 1.9mm，ESR 40mΩ），替换原来的 A 壳 3216 100µF/10V 聚合物钽（B 壳及以下做不到 100µF/10V 聚合物，只能用 6.3V）。降额：VSYS 稳态最高约 4.65V，占 74%；插拔振铃经 C35、R25 阻尼、过 D2 后约 5.2～5.3V，在约 5.7V 的 90% 线以内。打样验收第 3 步加测 VSYS 峰值，不超过 5.6V。B 壳更大，布局里 U12 往右上挪 0.3mm，和 U9、U11、R2 仍留 0.4mm 以上间隙。</td></tr>
+              <tr><td class="m">v4.13</td><td class="nw">2026-10-21</td><td>全站位号按嘉立创 EDA 原理图（V1.0，2026-10-20）重排，和 EDA 导出的 97 个位号一一对应。主要对应：主控 U1→U2，充电 U2→U1，LDO U3→U4，电量计 U9→U10，RTC U4→U6，AHT20 U5→U7，姿态 U6→U8，功放 U7→U9；Type-C J2→USB0，屏 FPC 座 J1→FPC1，TF 卡座 J6→CARD1，电池座 J3→U3，喇叭座 J4→U11，调试焊盘 J5→H3；升压开关 Q1→U13，负载共享 Q2→U5，卡电源 Q3→Q2，USB ESD U8→D1，TVS D4→D3，SS34 D5→D2，升压二极管 D1～D3→D4～D6；侧键 SW3～SW5→SW1～SW3，RST/BOOT SW1/SW2→SW5/SW6，总开关 SW7→S；晶振 Y1→X1，钽电容 C28→U12。原理图里 H3 是调试排针，定位孔改叫 MH1～MH4（还没加进 EDA）。器件按原理图同步：升压二极管 SD103AWS（SOD-323）换 MBR0530（SOD-123，30V）；阻容全部 0603，高压电容 4.7µF/25V 也用 0603；L1 换 YNR4030-100M（高 3mm，仍在 4mm 限高内）；充电灯限流 R19 从 1k 改 2k（约 1.5mA）；屏 VDDIO 电容 C14 从 0.1µF 改 1µF；新增屏 VPP 电容 C15 1µF、充电芯片 VCC 去耦 C1 10µF / C8 100nF、电池端 C2 100nF；去掉 VSYS 上单独的 22µF（VSYS 由 C9 10µF 和 U12 100µF 稳住）；电量计型号 CW2015CHBD，RTC 为 PCF8563DTR，负载共享管 U5 为 AO3401；USBLC6 改为 3、4 脚走 D+、1、6 脚走 D−。这张表里 v4.12 及以前的条目保留当时的位号。</td></tr>
+              <tr><td class="m">v4.12</td><td class="nw">2026-10-20</td><td>去掉功放输出的 FB1、FB2（原来默认 0Ω、可换磁珠的预留位），VOP、VON 直接接喇叭座 J4。NS4168 是免滤波 D 类功放，喇叭线很短，不需要磁珠；样板上真有干扰再在喇叭引线上套磁环。原理图、器件清单、布局数据（3D 视图、平面图）、外设页、布局要点跟着更新。</td></tr>
+              <tr><td class="m">v4.11</td><td class="nw">2026-10-20</td><td>TF 卡口加指甲槽：卡座位置不动，卡口靠屏幕面一侧挖半椭圆缺口（宽 6、高 1.6、深 1.0），指甲顺着缺口按卡尾就能弹出；卡尾不凸出壳面，避免手握或放支架时误按弹出。3D 视图、外壳侧视尺寸图、布局页外壳一节、器件清单（J6 选型要求）、验收第 11 步跟着更新。</td></tr>
+              <tr><td class="m">v4.10</td><td class="nw">2026-10-20</td><td>屏 FPC 座 J1 从 y 32 挪到 PCB 中心线 y 31：按规格书，屏 FPC 尾巴宽 12.5、中心离玻璃边 31.1，几乎正好在短边中间，PCB 和玻璃上下居中，所以 FPC 中心就是板子中心线，原来偏 1mm 会让 FPC 斜着插。3D 视图的 FPC 弯折、平面图、PCB 尺寸图（加了中心线和 J1）跟着改；J1 选总宽 ≤ 15mm 的 24P 座，上沿才不进天线净空区。</td></tr>
+              <tr><td class="m">v4.9</td><td class="nw">2026-10-20</td><td>布局页新增"尺寸图"一节，三张图都从布局数据算出来：PCB 外形尺寸图（98.5 × 62 L 形，缺角 54.5 × 43，各角圆角、定位孔坐标表、Type-C 小舌片）；外壳正视图（115 × 66 R4，开窗 93.8 × 56.7 及偏心位置，螺丝间距 110.4 × 58）；外壳开孔边侧视图（底边的总开关、TF 卡、翘板、菜单键，Type-C 那头的 Type-C、充电灯、出声槽；横向从天线 / Type-C 那头量，高度从屏幕面量）。</td></tr>
+              <tr><td class="m">v4.8</td><td class="nw">2026-10-20</td><td>总开关 SW7 加拨钮帽 KC3：整个沉在侧壁外侧 5.0 × 2.6mm、深 0.6mm 的凹槽里，拨钮面比壳面低 0.2mm，三道竖纹和壳面齐平，指甲才拨得动，桌面模式这条边朝上也不会误拨；凹槽底部开长孔给柄滑动，壳内挡片防脱，凹槽两端标 I / O。3D 视图画出了凹槽、拨钮和标记，"按键"视角拉远到能同时看到三个键帽、TF 卡口和总开关；布局页外壳一节、器件清单、验收第 11 步跟着更新。</td></tr>
+              <tr><td class="m">v4.7</td><td class="nw">2026-10-20</td><td>设计按键帽：翻页做成一个翘板 KC1（16 × 3.2mm，外伸 0.6，正中一道横向凸棱），盖住 SW4、SW3，绕开孔正中的支点筋转，压上半上一页、压下半下一页；菜单是单独的 Ø3.6 圆键 KC2（外伸 0.5，表面微凹），和翘板隔开 6mm。两个键帽都从壳内装，法兰片卡住侧壁内表面；开关选 100～130gf。3D 视图的外壳底边画出了键帽、翘板开孔、圆孔和支点筋，视角里加了"按键"近景；布局页外壳一节、器件清单、验收第 11 步、外设页姿态示意跟着更新。</td></tr>
+              <tr><td class="m">v4.6</td><td class="nw">2026-10-20</td><td>竖拿时 Type-C 和天线在下（更正 v4.5 里"天线在上方"的说法），原来顶边的侧键会落在左边。为了让侧键在右，电池缺角从左下挪到左上，左边窄条（侧键、RTC、AHT20 隔热岛、姿态传感器、I2C 测试点、H1/H2）整体搬到底边，右边一块不动。侧键在底边从左到右（背面视图）是菜单 SW5、上一页 SW4、下一页 SW3，竖拿时在机身中部、右手拇指下。桌面模式机器转 180° 放：侧键那条边朝上，电池那条边插进支架，TF 卡口朝上可以直接换卡，总开关拨杆缩进壳里一点防误拨；天线在右侧短边下半段，支架槽不深、不用金属即可。模组朝上一排的按键、I2C、中断线沿右边一块左缘往下约 40mm 进窄条。板框、3D 视图（含外壳开孔、支撑片、ST2）、平面图、外设页姿态示意、引脚页走线、器件清单、引脚表备注跟着更新。</td></tr>
+              <tr><td class="m">v4.5</td><td class="nw">2026-10-20</td><td>侧键从 4 个减为 3 个，去掉 SW6 和上拉 R21，GPIO4 空出。朗读改为长按菜单，桌面模式的"确认提醒"改为短按菜单。竖拿时按键固定在右边（天线在上方），从上到下是菜单（SW5）、上一页（SW4）、下一页（SW3），下一页最靠下、离右手拇指最近；菜单和翻页键之间隔 12mm。左手用户在设置里打开"倒着拿"。原理图、器件清单、引脚表、架构图、3D 视图、平面图、外设页姿态示意、固件页、引脚页、验收清单跟着更新。</td></tr>
+              <tr><td class="m">v4.4</td><td class="nw">2026-10-20</td><td>撤回 v4.1～v4.3 的触摸键方案，恢复顶边侧键 SW3～SW6 和上拉 R18～R21（原理图、器件清单、引脚表、3D 视图、平面图、外设页姿态示意、固件页、功耗页、验收清单都回到侧键）。原因：按规格书，没有 FPC 的一头玻璃边到显示区只有 2.736mm，外壳不加长时电极只能做到 10 × 2.4mm，信号太弱；挪到 Type-C 那头又要动天线、屏幕 FPC、Type-C 和喇叭。保留一项和触摸无关的修正：外壳开窗按规格书对准显示区（显示区偏向没有 FPC 的一头，开窗跟着挪 3.53mm），3D 视图的屏幕显示区、叠层图跟着改，外设页姿态示意图按 115 × 66 外壳的真实比例画，墨水屏页加了显示区位置。</td></tr>
+              <tr><td class="m">v4.3</td><td class="nw">2026-10-20</td><td>按屏幕规格书的结构图核对尺寸：显示区不在玻璃正中，没有 FPC 的一头玻璃边到 AA 只有 2.736mm（原来按居中估的约 6.3mm），有 FPC 的一头 9.794mm。外壳开窗跟着挪 3.53mm 对准显示区；外壳长度不变，电极条随之缩到 4.6mm 宽，电极缩到 10 × 2.4mm（一半在玻璃外），信号偏弱，打样实测，不够再考虑这一头外壳加长约 3.5mm。3D 视图（开窗、屏幕显示区、电极）、平面图、叠层图、触摸 FPC 剖面图和展开图、外设页的姿态示意图（改为按 115 × 66 外壳真实比例画）跟着更新；墨水屏页加了显示区位置。</td></tr>
+              <tr><td class="m">v4.2</td><td class="nw">2026-10-20</td><td>触摸键防干扰，FPC1 仍为单面：电极沿短边缩到 10 × 5.6mm，间隔从 5.25mm 拉到 8.25mm；引线收到 0.1mm，E2、E3 从电极靠弯折处的顶角接出，E3 的引线离 E2 约 1.35mm；弯折段在引线两侧铺同层网格地，减轻手托底边角时隔着侧壁的耦合；固件加"多个键同时为低整次忽略"。布局页 3D 视图、展开图、剖面图和"触摸电极 FPC"一节跟着更新，验收第 12 步加了单独摸 E2、手托底边角两项。</td></tr>
+              <tr><td class="m">v4.1</td><td class="nw">2026-10-20</td><td>侧键 SW3～SW6 和上拉 R18～R21 取消，翻页改用电容触摸。三个电极 E1～E3 做在单面软板 FPC1 上，夹在面框背面和屏幕玻璃的不显示边之间（天线对面那条短边，竖拿时朝下）；FPC1 外缘沿侧壁弯到背面，平贴在 ST2 泡棉上，三颗 TTP223（U10～U12）和阻容焊在这一段；尾巴插进隔热岛左上角新增的 5P 上接 FPC 座 J7，U5 往右下挪约 2mm 让位。布局页的 3D 视图、平面图、叠层图跟着更新，新增"触摸电极 FPC"一节（剖面图和展开图）；原理图"传感器与按键"去掉侧键，改名"传感器"，新增 SCH 6"触摸键"（J7 + FPC1 上的三路 TTP223），连通性检查通过；外设页 7.8 改为触摸键映射（竖拿电极朝下 / 倒着拿 / 横放），引脚页走线、固件页的唤醒、翻页交互和固件约定、功耗页的深睡底电流（加 TTP223 ×3 约 4.5～9µA）跟着更新，打样验收加第 12 步"触摸键"；GPIO4 空出。</td></tr>
+              <tr><td class="m">v4.0</td><td class="nw">2026-10-19</td><td>首页按产品网站重做，只留两屏。第一屏是一句标语和一台大尺寸设备：往下滚动时设备从横放转到竖拿，标题从"横放看状态"切到"竖拿读本书"，另一句用空心字显示，像残影；转到位后全刷换成阅读界面。第二屏是文档目录，每页配一个 1-bit 像素图标。首页顶栏改成简洁导航。原来首页上的主要器件、评审进度、整体架构、电压域、设计原则、阅读指南和修订记录挪到新增的"概览"页（图纸 02），其后各页编号顺延一位。</td></tr>
+              <tr><td class="m">v3.9</td><td class="nw">2026-10-19</td><td>主页按网站首页重新设计：首屏是标语、简介和实时演示，下面依次是关键参数、两种模式、按主题分组的文档入口、项目进度（流程条加评审统计）、工作原理、设计原则、阅读指南和更新日志。主页不再有章节编号、右侧目录和翻页按钮；电压域表和较早的修订记录收进可展开的区块。导航里的"概览"改名为"首页"。随后加了动画，全部按帧跳动，像墨水屏的刷新波形：标题逐字黑白闪后显现；演示屏局刷会留下淡淡残影，几次后全刷清掉；"两种模式"改成滚动演示，往下滚动时设备从横放转到竖拿，姿态传感器读数跟着变，转到位后全刷切到阅读界面；小标题扫描擦除出现，卡片反色一帧后进场，关键参数一档一档跳到终值，文档入口换成 1-bit 像素图标。系统开了"减少动态效果"时这些动画都不播放。</td></tr>
+              <tr><td class="m">v3.8</td><td class="nw">2026-10-19</td><td>全站改成墨水屏观感：界面只用黑、白和几级灰，评审里的严重项用三色价签屏那种红色；去掉圆角、阴影和渐变动画，悬停改为反色；进度条、计量条用 1px 抖动网点代替半透明色；示意图和 3D 视图降低饱和度，看起来像彩色墨水屏；深色主题改为反色墨水屏。进页时模拟刷新：本次浏览的第一页全刷，之后翻页只局刷一下，系统开了"减少动态效果"就不闪。去掉每页底部的标题栏和页脚说明，只保留上一页、下一页。</td></tr>
+              <tr><td class="m">v3.7</td><td class="nw">2026-10-19</td><td>精简交互：去掉全站的悬浮卡片。正文里的位号只作标签，不再悬停弹信息、也不再链到器件清单；评审项编号保留点击跳转。引脚图、墨水屏驱动图、PCB 平面图和测试点表改为只在点击时切换详情，鼠标划过不再切换；3D 视图悬停只描边，不再弹文字框；功耗页底电流条去掉悬停提示（数值见下方表格）。</td></tr>
+              <tr><td class="m">v3.6</td><td class="nw">2026-10-19</td><td>示意图重画和整理：总览页的系统架构图按当前设计重画，补上电量计、TF 卡、侧键、总开关和 USB 检测，唤醒线集中走一条通道；墨水屏驱动图重画，FPC 一侧行距放大，电容不再挤在一起，D1～D3 方向按 silkscreen-pcb 标注清楚；PCB 平面图右侧标注挪到外壳轮廓外，小元件位号加描边；引脚图底边焊盘间距放大，编号不再重叠，去掉空的“电源检测”分组。</td></tr>
+              <tr><td class="m">v3.5</td><td class="nw">2026-10-19</td><td>集中处理待核实项：U3 引脚、SW7（2 脚公共端、额定 ≥1A）、R29/R30 接法、J3 线序（红线对 1 脚）、TP4056X 充电公式（2k 约 600mA）、喇叭 8Ω 1W 均已确认；AHT20 引脚按嘉立创符号改为 1、6 NC，2 VDD，3 SCL，4 SDA，5 GND；C28 改为 100µF/10V A 壳 3216；LDO 结温计算的 θJA 改用规格书的 220°C/W；U8 引脚、AO3401A 阈值、SMF 钳位电压、Claude Code 事件名对照资料后去掉待核实。剩下的待核实项都要等写固件或样板实测。</td></tr>
+              <tr><td class="m">v3.4</td><td class="nw">2026-10-19</td><td>VBUS 加振铃阻尼，参考 silkscreen-pcb Rev 1.01：新增 C34 1µF 直接接 VBUS、紧挨 J2；C17 10µF 的地端改经新增的 R34 1Ω 接地。插带电的 USB-A 电源时振铃峰值从 7～8V 降到约 5.6V，经 D5 到 VSYS 的 U3、U7 也不再有过压风险。打样验收第 3 步的 VBUS 峰值标准从 8V 收紧到 6V。器件清单页改为按元件类别分节展示，同型号同封装合并成一行，可复制嘉立创 BOM 格式的 CSV；LED1 和 R22 在清单里拆成两行。</td></tr>
+              <tr><td class="m">v3.3</td><td class="nw">2026-10-19</td><td>全站通读，修正前后矛盾和过时的描述。主要有：充电电阻 R6 按你的选择改为 2k（约 600mA），验收标准相应改为 550～650mA；关机电流补上 D5、U2 的漏电，约 20～35µA；整机厚度统一为 8.85mm，J3、J4 离后壳 0.4mm；SSD1677 的 BUSY 改为高电平表示忙；墨水屏页注明 D1 方向与官方 PDF 相反；按键模拟图的键位和 SW 编号按实际布局修正；F3 已定，改为固件约定；3D 图喇叭出声槽改为 5 条，去掉导光柱；评审页、引脚页、固件页里"建议新增""推荐方案"等已定事项改为已采用。</td></tr>
+              <tr><td class="m">v3.2</td><td class="nw">2026-10-19</td><td>PCB 从两层改四层（嘉立创四层也能免费打样），厚度仍为 1.2mm。叠层：L1 朝屏面铺地、L2 电源、L3 完整地平面、L4 元件和主要信号。天线净空区四层都不铺铜；U2、U7 散热焊盘的过孔改为打到 L3。布局页新增四层叠层表。</td></tr>
+              <tr><td class="m">v3.1</td><td class="nw">2026-10-19</td><td>新增 I2C 测试点 TP6（I2C_SDA）、TP7（I2C_SCL）、TP8（GND），排在上拉电阻 R14、R15 下方、缺角上沿，间距 2.6mm，给逻辑分析仪抓总线上 U4、U5、U6、U9 的通信。</td></tr>
+              <tr><td class="m">v3.0</td><td class="nw">2026-10-18</td><td>墨水屏驱动图上 FPC 一侧的标签从 GPIO 编号改成网络名（EPD_BUSY、EPD_RST、EPD_DC、EPD_CS、EPD_SCK、EPD_MOSI），+3V3 统一为 3V3，和主控页的网络标签同名，画图时按名字直接连。墨水屏页的 FPC 引脚说明也同时写出网络名和 GPIO。</td></tr>
+              <tr><td class="m">v2.9</td><td class="nw">2026-10-18</td><td>GPIO0（BOOT）加 R33 10k 外部上拉到 3V3，和模组内部弱上拉并联，上电时更不容易被干扰误入下载模式。R33 放在 BOOT 键 SW2 和模组之间。</td></tr>
+              <tr><td class="m">v2.8</td><td class="nw">2026-10-18</td><td>J3、J4 按规格书改为 7.5×5.25mm、高 3.6mm，离后壳约 0.45mm，取消 v2.7 的后壳挖槽。座子变大后重新摆放：J3 右移，D5、C32、R29、R30 让位；J4 挪到 C28 下方，U8、R5、C17、R22 让位，J4 开口前方留约 3mm。</td></tr>
+              <tr><td class="m">v2.7</td><td class="nw">2026-10-18</td><td>J3、J4 都定为 MX1.25 2P 卧贴座，高 4.0mm，正好等于元件区限高，后壳内侧在两处各挖 0.5mm 深的槽。J4 尺寸变大后重新摆放：竖放在功放右侧、开口朝右，C28 挪到功放右上方，C17 挪到 U8 和 Type-C 之间。</td></tr>
+              <tr><td class="m">v2.6</td><td class="nw">2026-10-18</td><td>电池接口 J3 从焊盘改为 MX1.25 2P 卧贴座（约 3.4mm 高，在 4mm 限高内），开口朝左对着电池。打样验收和检查清单改为插电池前确认插头线序。</td></tr>
+              <tr><td class="m">v2.5</td><td class="nw">2026-10-18</td><td>Type-C 按常规装法悬出板边约 1mm，PCB 小舌片从 3mm 缩到 2mm，接口前端位置不变（离外壳表面约 2mm）。外形从 99.5×62mm 缩到 98.5×62mm。</td></tr>
+              <tr><td class="m">v2.4</td><td class="nw">2026-10-18</td><td>充电灯 LED1 换成 1.6×0.6mm 侧发光贴片 LED，挪到右侧板边、紧挨 Type-C 下方，发光面朝外，外壳侧壁开小窗出光，去掉导光柱。</td></tr>
+              <tr><td class="m">v2.3</td><td class="nw">2026-10-18</td><td>状态灯 LED1 改为充电灯，由 TP4056 的 CHRG# 直接驱动：VBUS → R22 1k → LED1 → CHRG，充电时亮、充满或没插线时灭，关机插 USB 只充电时也能看到。去掉 R7 和 CHG_STAT 网络，F5（CHRG 上拉反灌 VBUS）和 F15（CHG_STAT 占用 strapping 脚 GPIO3）随之解决。GPIO1、GPIO3 空出来。固件改由"插着 USB + 电量上涨"判断充电状态。</td></tr>
+              <tr><td class="m">v2.2</td><td class="nw">2026-10-18</td><td>姿态传感器 U6 的 INT2 接到 GPIO8（网络 ACC_INT2），用芯片自带的敲击检测实现"后壳双击翻下一页"，不加器件。固件页新增"翻页交互"一节：侧键两个下一页、长按手势、敲击、蓝牙翻页器和预渲染。普通 GPIO 至此全部用完。</td></tr>
+              <tr><td class="m">v2.1</td><td class="nw">2026-10-18</td><td>电源开关按实际原理图改：SW7 换成 TA-3525-A1 单刀双掷开关，从"电池和 Q2 之间"移到"负载共享之后、VSYS 之前"。D5 和 Q2 汇合成 VSYS_IN，经 SW7 才到 VSYS，关机时插 USB 只充电不开机。Q2 栅极直接接 VBUS，去掉 R8。VBAT_SW 网络取消，电量计 U9 改为直接接电池，关机后多耗约 15µA。</td></tr>
+              <tr><td class="m">v2.0</td><td class="nw">2026-10-18</td><td>电源网络命名统一：系统主电源 SYS 改名 VSYS，和 VBUS、VBAT、VBAT_SW 一样带 V 前缀，全站和原图同步替换。原理图页新增电源网络总表，列出每个电源网络的电压、来源与用途、出现在哪几张图，由原理图数据自动生成。</td></tr>
+              <tr><td class="m">v1.9</td><td class="nw">2026-10-18</td><td>NS4168 封装更正为 ESOP-8（带底部散热焊盘 EP），原理图补上引脚号和 EP 接地；EP 需热风枪或从过孔背面补焊。静态电流约 13mA、关断约 1µA 按规格书确认。</td></tr>
+              <tr><td class="m">v1.8</td><td class="nw">2026-10-18</td><td>按 NS4168 规格书更正 CTRL 的电平定义：0～0.4V 关断，0.9～1.15V 左声道，1.5V～VDD 右声道。GPIO48 输出 3.3V 选的是右声道，固件把 I2S 数据放右声道或左右都发。原文写成高电平左声道，是错的。</td></tr>
+              <tr><td class="m">v1.7</td><td class="nw">2026-10-18</td><td>C28 定为 100µF/10V 聚合物钽电容（B 壳 3528，高 ≤2mm；无货用 C 壳 6032）。普通 MnO2 钽电容在电池这种低阻电源上要降额到 1/3，放不下且失效多为短路；贴片固态铝电解高 5mm 以上，超过元件区 4mm 限高。</td></tr>
+              <tr><td class="m">v1.6</td><td class="nw">2026-10-18</td><td>TF 卡电源加缓启动：GPIO10 经 R31 10k 驱动 Q3 栅极，栅极和 3V3 之间并 C33 47nF，Q3 约 0.5ms 才完全导通，避免打开卡电源时 3V3 被 C29 拉跌。CLK 在模组端串 R32 33Ω。新增评审项 F18，打样验收 TF 卡一步加测 3V3 跌落。</td></tr>
+              <tr><td class="m">v1.5</td><td class="nw">2026-10-18</td><td>按模组在板上的朝向重新分配 GPIO：顶边一排（GPIO4～7、15～18）给按键、I2C 和中断；左边一列（GPIO3、9～14、21、47、48）给充电状态、USB 检测、TF 卡和功放；下边一排（GPIO38～42、2、1）给墨水屏和指示灯。屏 SPI 改走 GPIO 矩阵。按 ESP32-S3 规格书 v2.2 的复位状态挑脚：功放 CTRL 移到没有上下拉、没有毛刺的 GPIO48，F11 风险降低。空闲脚改为 GPIO8。</td></tr>
+              <tr><td class="m">v1.4</td><td class="nw">2026-10-18</td><td>LDO U3 从 HE9073A33MR（SOT-23-3）改为同系列的 HE9073A33M5R（SOT-23-5）：多出的 CE 使能脚接 VSYS 常开，4 脚 NC，电路行为不变。规格书给出 200mV@200mA 的压差，和原来按 1Ω 的估算一致，低电量门限不变。</td></tr>
+              <tr><td class="m">v1.3</td><td class="nw">2026-10-18</td><td>去掉电池分压 R10、R11、C22：电池电压和电量都由 U9 CW2015 给出。GPIO1 空出来，是 RTC GPIO，以后可做 ADC 或唤醒脚。深睡底电流少约 2µA。样板上的电压对照改用万用表测 TP3。</td></tr>
+              <tr><td class="m">v1.2</td><td class="nw">2026-10-18</td><td>PCB 左边缩进 8.5mm，外形从 108×62mm 改为 99.5×62mm（含 Type-C 舌片），进嘉立创 10×10cm 免费打样。右侧天线、FPC、Type-C 位置不变；U5、C24 右移 4mm，隔热槽横边缩短，仍留 3mm 窄桥；屏背面空出的左上角加 ST2 1.2mm 泡棉垫。外壳尺寸不变。</td></tr>
+              <tr><td class="m">v1.1</td><td class="nw">2026-10-17</td><td>新增电量计 U9 CW2015CSAD（I2C 0x62，TDFN-8 2×3mm）：VDD、CELL 经 R29 100Ω、R30 470Ω 和 C31、C32 1µF 接在 SW7 之后；ALRT 与 PCF8563 的 INT 线与到 GPIO6，不占新 GPIO。电量改读 SOC，充电时也能显示百分比；低电量门限改用 U9 的 VCELL。R10/R11 分压首版保留作对照。深睡底电流从约 35µA 升到约 50µA。新增评审项 F17（电池模型要和 454261 对上），打样验收第 5、7、10 步相应更新。CW2015 按电压推算电量，不测电流。</td></tr>
+              <tr><td class="m">v1.0</td><td class="nw">2026-10-17</td><td>按人体工学和走线重排 PCB：侧键移到顶边正中、两两一组；喇叭移到右下角从侧面出声，功放挨着喇叭；指示灯挪到 Type-C 旁；电源区挪到电池焊盘旁；LDO、RST/BOOT 贴着模组；模组上方留出线带。新增外壳：115×66×8.85mm，前壳（面框和侧壁一体）加平板后盖，4 颗螺丝在四角对称；屏幕贴在面框上，PCB 由后盖的定位压柱压住，不上螺丝；3D 视图里可以看，开孔由器件位置自动算出。</td></tr>
+              <tr><td class="m">v0.9</td><td class="nw">2026-10-17</td><td>功放 U7 从 MAX98357A 换成 NS4168（SOP-8，烙铁可焊），SD_MODE 改叫 CTRL；LDO U3 从 TLV75733P 换成 HE9073A33MR（500mA，静态电流约 0.3µA），深睡底电流从约 60µA 降到约 35µA。代价是压差更大，低电量门限上移：3.5V 停止联网，3.6V 停止朗读。全站排版调整，平面图点击不再出现大框。电池按实查改为约 1500mAh；加速度计改称姿态传感器，换成士兰微 SC7A20HTR；PCB 布局页去掉原布局对比。</td></tr>
+              <tr><td class="m">v0.8</td><td class="nw">2026-10-16</td><td>电池换成 454261（4.5×42×61，约 1200mAh），整机约 8.8mm；缺角改为 63×43mm；模组移到右上角、天线朝右侧短边，离电池约 35mm，USB 走线缩到约 25mm；AHT20 移到左上角；电池座 J3 改为焊盘；元件区限高 4mm，L1 用 4020，喇叭定为 16×9×3.5mm。续航相应减少约三分之一。</td></tr>
+              <tr><td class="m">v0.7</td><td class="nw">2026-10-16</td><td>PCB 改为 L 形，左下缺角 52×35mm 放电池，电池直接贴在屏背面，整机约 14.4mm（原约 17mm）；元件重新排到上边框和右侧块；Type-C 移到右侧短边下部；总开关 SW7 移到底边、紧挨 TF 卡；新增评审项 F16（电池鼓包会压屏，加支撑片和膨胀余量）；F14 随之解决；导航栏、页眉卡片和目录改为静态生成，切页不再跳动。</td></tr>
+              <tr><td class="m">v0.6</td><td class="nw">2026-10-16</td><td>按你的回答定稿六个设计决定；新增 TF 卡（SDMMC 1-bit，带电源开关）和拨动电源开关；板厚改 1.2mm；去掉 TP6～TP8；Q1、L1 沿用官方转接板取值（2N7002K、10µH），L1 改用 4020 低矮封装（F14）；CHG_STAT 改到 GPIO3（F15）；喇叭改为 16×9mm；电脑端按 Windows + NVIDIA、Claude 按 Pro/Max 订阅、朗读按阿里云写；3D 视图去掉浮动文字标签。</td></tr>
+              <tr><td class="m">v0.5</td><td class="nw">2026-10-16</td><td>PCB 布局页改为可拖动旋转的 3D 视图，支持原布局与建议布局对比、爆炸视图和图层开关；新增建议布局：天线与 Type-C 移到左侧短边，新增评审项 F13，D6 改为布局选择。</td></tr>
+              <tr><td class="m">v0.4</td><td class="nw">2026-10-16</td><td>拆成 11 张图纸；加入计算器、交互引脚图、可点击原理图与布局图、姿态模拟、电源状态机模拟；评审和验收可记录状态并复制汇总。</td></tr>
+              <tr><td class="m">v0.3</td><td class="nw">2026-10-16</td><td>加入评审 F1～F12、功耗预算、固件约定、按位号的完整器件清单、引脚表、测试点与验收步骤；建议增加 USB 检测；停止朗读门限提到 3.45V；去掉 USB 90Ω 要求。</td></tr>
+              <tr><td class="m">v0.2</td><td class="nw">—</td><td>器件选型、电路要点、引脚分配、PCB 布局和固件策略。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+    <aside class="rail" aria-label="本页导航"></aside>
+  </div>
+
+  <div class="titleblock-wrap" data-auto-foot></div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(() => {
+  const { D, el, review, store } = APP;
+  function renderDash() {
+    const states = D.findings.map(f => review.get(f.id).s);
+    const cnt = k => states.filter(s => s === k).length;
+    const handled = D.findings.length - cnt('todo');
+    const must = D.findings.filter(f => f.sev === 'must' || f.sev === 'open');
+    const mustLeft = must.filter(f => review.get(f.id).s !== 'done').length;
+    const dec = review.decisions();
+    const decided = D.decisions.filter(d => (dec[d.id] && dec[d.id].pick) || d.chosen).length;
+    const bu = store.get('bringup', { steps: {}, checks: {} });
+    const passed = D.steps.filter((s, i) => (bu.steps[i] || {}).s === 'pass').length;
+    const failed = D.steps.filter((s, i) => (bu.steps[i] || {}).s === 'fail').length;
+    const checked = D.checks.filter(c => bu.checks && bu.checks[c.id]).length;
+    const meter = parts => el('div', { class: 'meter', 'aria-hidden': 'true' }, parts.map(p => el('i', { style: `width:${p[0] * 100}%;background:${p[1]}` })));
+    const N = D.findings.length;
+    const dash = document.getElementById('dash');
+    dash.innerHTML = '';
+    dash.append(
+      el('div', null, el('div', { class: 'k', text: '评审项已处理' }), el('div', { class: 'v' }, String(handled), el('small', { text: ' / ' + N })),
+        el('div', { class: 's', text: `同意 ${cnt('agree')} · 已解决 ${cnt('done')} · 有异议 ${cnt('disagree')}` }),
+        meter([[cnt('done') / N, 'var(--ok)'], [cnt('agree') / N, 'var(--mask)'], [cnt('disagree') / N, 'var(--crit)']])),
+      el('div', null, el('div', { class: 'k', text: '打样前必须关掉' }), el('div', { class: 'v' }, String(mustLeft), el('small', { text: ' / ' + must.length })),
+        el('div', { class: 's', text: '打样前处理与待决定项中未标"已解决"的' }), meter([[must.length ? (must.length - mustLeft) / must.length : 1, 'var(--ok)']])),
+      el('div', null, el('div', { class: 'k', text: '设计决定' }), el('div', { class: 'v' }, String(decided), el('small', { text: ' / ' + D.decisions.length })),
+        el('div', { class: 's', text: decided === D.decisions.length ? '全部已选' : '还有 ' + (D.decisions.length - decided) + ' 项待选' }), meter([[decided / D.decisions.length, 'var(--mask)']])),
+      el('div', null, el('div', { class: 'k', text: '打样验收' }), el('div', { class: 'v' }, String(passed), el('small', { text: ' / ' + D.steps.length })),
+        el('div', { class: 's', text: `失败 ${failed} · 清单 ${checked}/${D.checks.length}` }), meter([[passed / D.steps.length, 'var(--ok)'], [failed / D.steps.length, 'var(--crit)']]))
+    );
+    const attn = document.getElementById('attn');
+    attn.innerHTML = '';
+    D.findings.filter(f => f.sev === 'must' || f.sev === 'open' || f.sev === 'should').forEach(f => {
+      const sv = D.severities[f.sev];
+      const st = D.reviewStates.find(x => x.k === review.get(f.id).s);
+      attn.append(el('a', { href: 'review.html#' + f.id, 'data-f': f.id },
+        el('span', { class: 'id', text: f.id }), el('span', { class: 'sev ' + sv.cls, text: sv.label }),
+        el('span', { text: f.title }), el('span', { class: 'st', text: st.label })));
+    });
+    APP.enhance(attn);
+  }
+  renderDash();
+  document.addEventListener('review-change', renderDash);
+  window.addEventListener('storage', renderDash);
+})();
+</script>
+</body>
+</html>

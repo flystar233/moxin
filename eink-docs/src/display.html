@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>墨水屏 · 墨水屏监控器设计笔记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .inspect { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 14px; align-items: start; padding: 14px 16px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); margin-top: 10px; min-height: 108px; }
+  .inspect .big { font-family: var(--f-mono); font-size: 1.6rem; font-weight: 600; color: var(--copper); line-height: 1.2; }
+  .inspect .t { font-weight: 700; }
+  .inspect .k { font-size: var(--fs-sm); color: var(--ink-3); }
+  .inspect p { margin: 4px 0 0; font-size: .94rem; }
+  .pin-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px; margin-top: 10px; }
+  .pin-list button { font: inherit; font-size: .8rem; text-align: left; display: grid; grid-template-columns: 2em 1fr; gap: 4px; padding: 3px 8px; border: 1px solid var(--rule-2); border-radius: 3px; background: var(--sheet); color: var(--ink-2); cursor: pointer; }
+  .pin-list button .p { font-family: var(--f-mono); color: var(--ink-3); }
+  .pin-list button .nm { font-family: var(--f-mono); }
+  .pin-list button:hover, .pin-list button.on { border-color: var(--copper); color: var(--ink); background: var(--copper-soft); }
+  .tradeoff { display: grid; gap: 6px; margin-top: 4px; }
+  .tbar { height: 10px; background: var(--sunk); border-radius: 2px; overflow: hidden; }
+  .tbar i { display: block; height: 100%; background: var(--copper); border-radius: 0 3px 3px 0; transition: width .25s cubic-bezier(.2, .7, .2, 1); }
+  @media (prefers-reduced-motion: no-preference) { .inspect > * { animation: fadein .22s ease-out; } }
+  @keyframes fadein { from { opacity: 0; transform: translateY(3px); } }
+</style>
+</head>
+<body data-sheet="display">
+<div class="wrap">
+  <header class="sheet-head">
+    <p class="eyebrow" data-auto></p>
+    <h1>墨水屏</h1>
+    <p class="lede">4.26 寸 800×480 黑白屏，219 dpi，清晰度约为常见 4.2 寸 400×300 屏的两倍。屏内的 SSD1677 自己驱动升压电路，板上只放功率器件，所以这几颗器件的取值是这一页的重点。</p>
+    <div class="head-chips" data-auto></div>
+  </header>
+
+  <div class="body">
+    <div class="main">
+
+      <section class="sec" id="specs">
+        <h2>屏幕参数</h2>
+        <p>屏幕原生为竖屏（480 宽 × 800 高）。桌面模式横放，在软件里旋转 90°；阅读模式竖放，正好是原生方向。</p>
+        <div class="tbl-wrap">
+          <table class="kv">
+            <tbody>
+              <tr><td>尺寸</td><td>4.26″</td></tr>
+              <tr><td>分辨率</td><td class="num">480 × 800（横放为 800 × 480）</td></tr>
+              <tr><td>有效显示区域</td><td class="num">55.68 × 92.80 mm（= 480 × 0.116，800 × 0.116）</td></tr>
+              <tr><td>外形尺寸</td><td class="num">62.37 × 105.33 × 0.85 mm（不含遮蔽膜）</td></tr>
+              <tr><td>显示区位置</td><td class="num">不在玻璃正中：玻璃边到 AA，没有 FPC 的一头 2.736 mm、有 FPC 的一头 9.794 mm、长边各 3.346 mm；Border 56.88 × 94.00 mm（AA 外一圈约 0.6 mm）。外壳开窗按这个对齐（v4.4）</td></tr>
+              <tr><td>像素间距</td><td class="num">0.116 mm（25.4 / 0.116 ≈ 219 dpi）</td></tr>
+              <tr><td>重量</td><td class="num">8.5 g</td></tr>
+              <tr><td>接口</td><td>24pin FPC，从短边伸出，尾长约 24mm、宽约 12.5mm</td></tr>
+              <tr><td>驱动 IC</td><td>SSD1677</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sec" id="schematic">
+        <h2>接口与驱动电路</h2>
+        <p>按官方转接板原理图（<a href="../4.26寸墨水屏转接板.pdf">osptek 4.26 墨水屏转接板 V1.0</a>，屏 FPC 标识 T0426A02-A0）绘制，器件和取值与它逐一核对过；只有 <a class="ref">D4</a> 的方向不同：官方 PDF 把 D4 画成阴极接 VGL，那样电荷泵出不了负压，这里按 silkscreen-pcb 和电路原理改为阳极接 VGL。左边是升压电路，产生约 +20V 的 VGH 和约 −20V 的 VGL；右边是 24pin FPC 座 <a class="ref">FPC1</a> 的连接，两边通过同名网络标签相连。<strong>点击或悬停元件和 FPC 引脚</strong>，下方会显示它的作用。</p>
+        <figure class="fig">
+          <div class="fig-surface" id="epdFig">
+<!--SVG:epd-->
+          </div>
+          <figcaption>× 表示悬空。BS1 接 GND 选择 4 线 SPI。红色 F1、F2 标出的是样板上要用波形验证的两颗器件。</figcaption>
+        </figure>
+        <div class="inspect" id="inspect" aria-live="polite"></div>
+        <div class="pin-list" id="pinList" aria-label="FPC 引脚"></div>
+        <div class="callout note"><b>名称容易混淆</b><p>13、14 脚叫 SCL、SDA，但它们是 SPI 的时钟和数据线，接 ESP32 的 SPI 引脚，不要接到 I2C 总线上。</p></div>
+        <div class="callout warn"><b>耐压与方向</b><p>VGH、VGL 约 ±20V，<a class="ref">C11</a>～<a class="ref">C13</a>、<a class="ref">C16</a>、<a class="ref">C17</a>、<a class="ref">C20</a>～<a class="ref">C22</a>、<a class="ref">C33</a> 都要选 25V 耐压；只有 <a class="ref">C19</a>（VDD 1.5V）和 3.3V 上的电容可以用普通耐压。<a class="ref">D4</a>、<a class="ref">D5</a> 组成负压电荷泵，方向必须和图中一致，接反就没有负压，屏幕刷不出来。</p></div>
+      </section>
+
+      <section class="sec" id="boost">
+        <h2>升压器件的取值</h2>
+        <p>这块屏的升压是电流模式：SSD1677 通过 GDR 开关 <a class="ref">U13</a>，从 RESE 读取 <a class="ref">R13</a> 上的电压，决定每个周期什么时候关断。开关频率和峰值电流由屏自己控制，板上器件偏离参考设计，屏就工作在没验证过的工作点上。</p>
+
+        <h3>U13 开关管：2N7002K <a class="fx">F1</a> <span class="tag bench">待实测</span></h3>
+        <p>已定（<a href="review.html#D3">D3</a>）：沿用官方转接板的 2N7002K。另一个开源项目 silkscreen 用同款屏时，按供应商的要求换成了低导通电阻的 IRLML6346（2.5V 栅压下约 80mΩ）；2N7002K 在 3.3V 栅压下是欧姆级。官方板既然这样用，说明在正常条件下够用，风险主要在低电量时：每周期能量变少，VGH/VGL 建立得慢，表现为刷新变慢或残影加重。所以把它列为样板的验证项。</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>型号</th><th>封装 / 引脚</th><th>耐压</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr class="is-new"><td class="m">2N7002K（采用）</td><td>SOT-23，1G 2S 3D</td><td>60V</td><td>官方转接板取值</td></tr>
+              <tr><td class="m">IRLML6346</td><td>SOT-23，1G 2S 3D</td><td>30V</td><td>备选：样板波形不理想时直接替换</td></tr>
+              <tr><td class="m">AO3400A</td><td>SOT-23，1G 2S 3D</td><td>30V</td><td>备选：常见、便宜，栅极电容较大</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>三者焊盘通用，换型号不用改板。</p>
+
+        <h3>L1 电感：10µH，4030 封装 <a class="fx">F2</a> <a class="fx">F14</a></h3>
+        <p>已定（<a href="review.html#D4">D4</a>）：沿用官方转接板的 10µH；SSD1677 规格书参考电路是 47µH，作为样板波形不理想时的备选。原理图选 YNR4030-100M（4×4×3mm，屏蔽，饱和电流 ≥1A）。v0.7 改 L 形板后 L1 已不在电池下面，但元件区限高 4mm，5040 高 4mm 刚好卡在上限，4030 高 3mm，在限高内。</p>
+
+        <h3>R13 电流检测 2.2Ω</h3>
+        <div class="panel">
+          <div class="panel-head"><b>演示 · R13 取值的权衡</b><span><span class="tag calc">相对值</span></span></div>
+          <div class="panel-body">
+            <div class="controls">
+              <div class="ctl"><span class="ctl-top">R13</span>
+                <div class="seg" id="r2Seg"><button type="button" data-v="1">1.0Ω</button><button type="button" data-v="1.5">1.5Ω</button><button type="button" data-v="2.2" aria-pressed="true">2.2Ω</button><button type="button" data-v="3.3">3.3Ω</button><button type="button" data-v="4.7">4.7Ω</button></div></div>
+              <p class="muted" style="margin:0;font-size:.85rem">关断门限电压固定，所以峰值电流与 R13 成反比，每周期能量与峰值电流的平方成正比。</p>
+            </div>
+            <div class="readouts">
+              <div class="tradeoff"><span class="ro-label">峰值电流（相对 2.2Ω）</span><div class="tbar"><i id="tbI"></i></div><span class="ro-sub" id="tbIv"></span></div>
+              <div class="tradeoff"><span class="ro-label">每周期能量（相对）</span><div class="tbar"><i id="tbE"></i></div><span class="ro-sub" id="tbEv"></span></div>
+              <div class="verdict ok" id="r2V"></div>
+            </div>
+          </div>
+        </div>
+        <p>样板如果刷新慢或高压跌落，就减小 R13；出现过冲或振铃，就加大 R13。</p>
+
+        <h3>R12 栅极下拉 10k</h3>
+        <p>屏未上电或 GDR 高阻时保持 U13 关断。取官方转接板的 10k；silkscreen 用的是 1MΩ，区别只是 GDR 每次拉高要多提供 0.33mA。</p>
+        <p><strong>样板怎么测</strong>：不加专门的测试点，示波器探头直接点 U13 栅极（GDR）、<a class="ref">C12</a>（VGH）和 <a class="ref">C33</a>（VGL），见打样验收第 6 步。</p>
+      </section>
+
+      <section class="sec" id="fpc">
+        <h2>FPC 弯折与安装</h2>
+        <ul class="plain">
+          <li>FPC 从屏幕短边伸出，绕过 PCB 边缘弯折 180° 到背面接入。弯折后金手指朝向会反过来，<a class="ref">FPC1</a> 选上接还是下接，要按弯折后的朝向决定，最好先用纸条模拟一下。</li>
+          <li>FPC1 离板边的距离要和约 24mm 的尾长匹配，弯折处留一点余量，不要拉紧。FPC 从短边正中出来（尾巴宽 12.5，中心离玻璃边 31.1，玻璃中心是 31.19），FPC1 的中心要对准 PCB 中心线 y 31，否则 FPC 会斜着插进去、长期被拉扯。靠近玻璃边缘的 IC 和弯折根部最脆弱，不能受力。</li>
+          <li>屏幕玻璃只有 0.85mm 厚，背面需要整面平整支撑，PCB 朝屏一面不放元件就是为了这一点。v0.7 起 PCB 是 L 形，左上缺角（v4.6 起，原在左下）放电池，缺角处由贴在屏背面的 0.2mm 支撑片承托（<a class="fx">F16</a>）。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="refresh">
+        <h2>刷新策略</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th></th><th>局刷</th><th>全刷</th></tr></thead>
+            <tbody>
+              <tr><td>桌面模式</td><td>只刷数值有变化的区域</td><td>每 20～50 次局刷或每小时一次，清残影</td></tr>
+              <tr><td>阅读模式</td><td>翻页</td><td>每 5～10 页一次，做成菜单设置项，以实测为准</td></tr>
+              <tr><td>切换模式</td><td>—</td><td>每次切换都全刷</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>整页文字变化大，残影比数值区明显，所以阅读模式的全刷间隔更短。每次刷新完立刻让 SSD1677 进深睡（GxEPD2 的 <code>hibernate()</code>），高压不能长时间开着。</p>
+      </section>
+
+      <section class="sec" id="software">
+        <h2>软件库与显存</h2>
+        <p>Arduino 环境用 GxEPD2。较新版本已有 4.26 寸 800×480 SSD1677 屏的驱动类（如 <code>GxEPD2_426_GDEQ0426T82</code>，以库中实际文件名为准）；中文用 U8g2_for_Adafruit_GFX。阅读模式的页面在服务端渲染成图片，设备端不需要完整的中文字库，只有桌面模式的日期、星期等少量汉字用小字库。</p>
+<pre class="calc">一帧    480 × 800 × 1 bit = 48 000 B ≈ 48 KB
+双缓冲  ≈ 96 KB → 片内 SRAM 放得下
+8 MB PSRAM 留给字库、图标、章节页面缓存和音频缓冲</pre>
+      </section>
+
+    </div>
+    <aside class="rail" aria-label="本页导航"></aside>
+  </div>
+  <div class="titleblock-wrap" data-auto-foot></div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(() => {
+  const { el, refMap } = APP;
+  const $ = id => document.getElementById(id);
+  const roles = {
+    L1: { t: '升压电感', d: 'U13 导通时储能，关断时把能量送到 D6（正压）和 C11（负压电荷泵）。取官方转接板的 10µH，封装用 4030（YNR4030-100M），见 F2、F14。', f: 'F2' },
+    U13: { t: '升压开关管', d: '栅极由屏的 GDR 直接驱动，源极经 R13 到地。取官方转接板的 2N7002K，样板上用波形验证，见 F1。', f: 'F1' },
+    R12: { t: 'U13 栅极下拉', d: '屏未上电或 GDR 高阻时保持 U13 关断。取官方转接板的 10k。' },
+    R13: { t: 'RESE 电流检测', d: '屏读取 R13 上的电压决定何时关断 U13，取值决定每周期的峰值电流。' },
+    D4: { t: '负压电荷泵输出', d: '从 VGL 指向 C11 节点。开关节点拉低时 C11 节点变负，D4 导通把 VGL 拉向负压。方向接反就没有负压。' },
+    D5: { t: '负压电荷泵钳位', d: '开关节点为高时把 C11 节点钳到地，让 C11 充上约 20V。' },
+    D6: { t: '正压整流', d: '把开关节点的脉冲整流成 VGH，存在 C12 上。' },
+    C11: { t: '电荷泵飞电容', d: '把开关节点约 20V 的摆幅搬到负电压一侧。必须 25V 耐压。' },
+    C4: { t: '升压输入电容', d: '开关环路 C4 → L1 → U13 → R13 的一部分，紧靠 L1 放，环路面积越小越好。' },
+    C12: { t: 'VGH 储能', d: '正高压储能电容，25V 耐压。' },
+    C33: { t: 'VGL 储能', d: '负高压储能电容，25V 耐压。' }
+  };
+  const fpc = [
+    ['NC', '悬空'], ['GDR', '屏输出：驱动 U13 栅极'], ['RESE', '屏输入：读取 R13 上的电流检测电压'], ['NC', '悬空'],
+    ['VSH2', '源极正高压，接 C13 4.7µF/25V 到地', 'C13'], ['GND', '地'], ['GND', '地'], ['BS1', '接 GND，选择 4 线 SPI'],
+    ['BUSY_N', '→ EPD_BUSY（GPIO2），屏忙时为高（SSD1677 的 BUSY 高电平表示忙）'], ['RST_N', '← EPD_RST（GPIO42），复位'], ['DC', '← EPD_DC（GPIO41），数据/命令选择'], ['CSB', '← EPD_CS（GPIO40），片选'],
+    ['SCL', '← EPD_SCK（GPIO39），SPI 时钟（屏厂叫 SCL，不是 I2C）'], ['SDA', '← EPD_MOSI（GPIO38），SPI 数据（屏厂叫 SDA，不是 I2C）'],
+    ['VDDIO', '3V3，接 C3 22µF + C14 1µF', 'C3'], ['VCC', '3V3'], ['VSS', '地'], ['VDD', '屏内部 1.5V，接 C19 1µF', 'C19'],
+    ['VPP', 'OTP 编程电压，接 C15 1µF 到地', 'C15'], ['VSH1', '源极正高压，接 C20 4.7µF/25V', 'C20'], ['VGH', '栅极正高压，接 C16 1µF/25V，与 D6/C12 的 VGH 相连', 'C16'],
+    ['VSL', '源极负高压，接 C21 4.7µF/25V', 'C21'], ['VGL', '栅极负高压，接 C17 1µF/25V，与 D4/C33 的 VGL 相连', 'C17'], ['VCOM', '公共电极，接 C22 1µF/25V', 'C22']
+  ];
+  const insp = $('inspect');
+  const fig = $('epdFig');
+  function showRef(ref) {
+    const r = roles[ref] || {}, it = refMap.get(ref);
+    insp.innerHTML = '';
+    insp.append(el('div', { class: 'big', text: ref }),
+      el('div', null,
+        el('div', { class: 't' }, (r.t || (it && it.fn) || ''), ' ', r.f ? el('a', { class: 'fx', text: r.f }) : null),
+        it ? el('div', { class: 'k' }, el('span', { class: 'mono', text: it.part }), ' · ' + it.pkg) : null,
+        el('p', { text: r.d || (it && it.note) || '' }),
+        el('a', { href: 'bom.html#ref-' + ref, style: 'font-size:.85rem', text: '在器件清单中查看 →' })));
+    APP.enhance(insp);
+    mark('[data-hit="' + ref + '"]');
+  }
+  function showPin(k) {
+    const p = fpc[k - 1];
+    insp.innerHTML = '';
+    insp.append(el('div', { class: 'big', text: 'FPC1-' + k }),
+      el('div', null, el('div', { class: 't' }, el('span', { class: 'mono', text: p[0] })),
+        el('p', { text: p[1] }), p[2] ? el('div', { class: 'k' }, '相关器件 ', el('a', { class: 'ref', text: p[2] })) : null));
+    APP.enhance(insp);
+    mark('[data-pin="' + k + '"]');
+    document.querySelectorAll('#pinList button').forEach(b => b.classList.toggle('on', +b.dataset.k === k));
+  }
+  function mark(sel) {
+    fig.querySelectorAll('.hit.on').forEach(n => n.classList.remove('on'));
+    const n = fig.querySelector(sel); if (n) n.classList.add('on');
+  }
+  fig.querySelectorAll('[data-hit]').forEach(n => {
+    const go = () => showRef(n.dataset.hit);
+    n.addEventListener('click', go); n.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    n.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  });
+  fig.querySelectorAll('[data-pin]').forEach(n => {
+    const go = () => showPin(+n.dataset.pin);
+    n.addEventListener('click', go); n.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  });
+  fpc.forEach((p, i) => {
+    const b = el('button', { type: 'button', 'data-k': i + 1 }, el('span', { class: 'p', text: String(i + 1) }), el('span', { class: 'nm', text: p[0] }));
+    b.addEventListener('click', () => showPin(i + 1));
+    $('pinList').append(b);
+  });
+  showRef('U13');
+
+  APP.bindSeg($('r2Seg'), v => r2(+v));
+  function r2(R) {
+    const I = 2.2 / R, E = I * I;
+    $('tbI').style.width = Math.min(I / 2.2 * 100, 100) + '%';
+    $('tbE').style.width = Math.min(E / 4.84 * 100, 100) + '%';
+    $('tbIv').textContent = '× ' + I.toFixed(2);
+    $('tbEv').textContent = '× ' + E.toFixed(2);
+    if (R === 2.2) APP.verdict($('r2V'), 'ok', '参考设计取值，屏的波形按这个工作点验证过。');
+    else if (R < 2.2) APP.verdict($('r2V'), 'warn', '峰值电流更大，高压建立更快，但纹波、干扰和 L1 饱和风险都增加。');
+    else APP.verdict($('r2V'), 'warn', '峰值电流更小、更安静，但每周期能量少，低电量时 VGH/VGL 可能建立不起来。');
+  }
+  r2(2.2);
+})();
+</script>
+</body>
+</html>

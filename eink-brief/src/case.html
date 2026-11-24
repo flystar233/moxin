@@ -1,0 +1,135 @@
+  <header class="sheet-head">
+    <p class="eyebrow">{{meta:rev}} · {{meta:date}} · {{meta:status}}</p>
+    <h1>外壳制造</h1>
+    <p class="lede">外壳 v1 的生产文件和加工要求：亚克力面板激光切割，中框、后盖和 3 个键帽 3D 打印。打印件分两版：发给手板厂做光固化或 CNC 手板、再翻硅胶模复模的<strong>手板版</strong>，和自己用 FDM 打印机打的 <strong>FDM 版</strong>。两版外形、开孔位置和叠层完全一样，只是间隙和细节按加工方式调过。</p>
+  </header>
+
+  <div class="body">
+    <div class="main">
+      <section class="sec" id="files">
+        <h2>文件</h2>
+        <p>STL 单位 mm，已按打印方向平放，都检查过是封闭实体。DXF 是<strong>正视图</strong>（从屏幕正面看：天线和 Type-C 在左，按键在下），原点在外形左下角。</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>文件</th><th>给谁</th><th>内容</th></tr></thead>
+            <tbody>
+              <tr><td class="m"><a href="files/case/master-frame.stl" download>master-frame.stl</a><br><a href="files/case/master-back.stl" download>master-back.stl</a><br><a href="files/case/master-keys.stl" download>master-keys.stl</a></td><td>手板厂</td><td>手板版中框、后盖、3 个键帽，一个零件一个文件</td></tr>
+              <tr><td class="m"><a href="files/case/fdm-print.stl" download>fdm-print.stl</a></td><td>自己打印</td><td>FDM 版整套（中框、后盖、3 个键帽）排在一个文件里，可以直接切片，不用支撑</td></tr>
+              <tr><td class="m"><a href="files/case/acrylic-printed.dxf" download>acrylic-printed.dxf</a></td><td>亚克力厂</td><td>方案 A（推荐）：透明亚克力 + 背面丝印白框。<code>CUT</code> 层切外形，<code>PRINT_WINDOW</code> 层是透光区（框内不印）</td></tr>
+              <tr><td class="m"><a href="files/case/acrylic-cutwindow.dxf" download>acrylic-cutwindow.dxf</a></td><td>亚克力厂</td><td>方案 B：白色不透明亚克力，外形和开窗都切穿</td></tr>
+              <tr><td class="m"><a href="files/case/eink-case.scad" download>eink-case.scad</a><br><a href="files/case/eink-case-master.scad" download>eink-case-master.scad</a><br><a href="files/case/eink-case-fdm.scad" download>eink-case-fdm.scad</a></td><td>结构工程师</td><td>OpenSCAD 源文件。改尺寸只改 <code>eink-case.scad</code>；打开对应版本的入口文件，F6 渲染、F7 导出</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>CNC 手板厂一般要 STEP。OpenSCAD 导不出 STEP，可以让厂家从 STL 转，或者先做光固化手板。</p>
+      </section>
+
+      <section class="sec" id="variants">
+        <h2>两个版本</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>项目</th><th>手板版</th><th>FDM 版</th></tr></thead>
+            <tbody>
+              <tr><td>用途</td><td>光固化 / CNC 手板，之后翻硅胶模复模（PU 真空注型）</td><td>自己的打印机，0.4mm 喷嘴</td></tr>
+              <tr><td>键帽和开孔每边间隙</td><td class="nw">0.2（以后注塑可到 0.15）</td><td class="nw">0.3</td></tr>
+              <tr><td>键帽开孔</td><td class="nw">圆孔 Ø4.0，翘板 16.4 × 3.6</td><td class="nw">圆孔 Ø4.2，翘板 16.6 × 3.8</td></tr>
+              <tr><td>Type-C 舌头间隙</td><td class="nw">0.1</td><td class="nw">0.15</td></tr>
+              <tr><td>自攻底孔</td><td class="nw">Ø1.6</td><td class="nw">Ø1.7（FDM 打出来的孔偏小）</td></tr>
+              <tr><td>翘板凸棱</td><td class="nw">0.6 × 0.3</td><td class="nw">0.8 × 0.4</td></tr>
+              <tr><td>电源键凸点</td><td class="nw">Ø0.8 高 0.2</td><td class="nw">Ø1.0 高 0.3</td></tr>
+              <tr><td>菜单键凹面</td><td class="nw">0.2</td><td class="nw">0.3</td></tr>
+              <tr><td>圆键底部</td><td>整圆</td><td>削平 0.2，侧躺打印时贴得住平台</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>两版键帽结构相同：法兰片下面和两端都是 45° 斜面，没有往下悬空的部分。</p>
+      </section>
+
+      <section class="sec" id="acrylic">
+        <h2>亚克力面板</h2>
+        <figure class="fig">
+          <div class="fig-surface"><img src="files/case/acrylic-preview.svg" alt="亚克力面板预览：白色边框，中间是透光区，四周标出各边开孔的位置" loading="lazy"></div>
+          <figcaption>面板预览（正视图）。白色是背面丝印区，中间是透光区；四周标出的是中框侧壁上开孔的位置，只用来对照，亚克力上不开孔。</figcaption>
+        </figure>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>项目</th><th>方案 A（推荐）</th><th>方案 B</th></tr></thead>
+            <tbody>
+              <tr><td>材料</td><td>透明 PMMA 1.5mm；想减反光可选 AG 防眩亚克力</td><td>白色不透明 PMMA 1.5mm（乳白 / 瓷白）</td></tr>
+              <tr><td>加工</td><td>切外形；<strong>背面</strong>丝印白色，透光区不印</td><td>切外形和开窗</td></tr>
+              <tr><td>效果</td><td>屏幕被整块面板盖住保护，正面平整；侧面是透明切割面，透出背面的白色</td><td>正面和侧面都是实心白色；屏幕玻璃露在开窗里</td></tr>
+              <tr><td>文件</td><td class="m">acrylic-printed.dxf</td><td class="m">acrylic-cutwindow.dxf</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="plain">
+          <li><strong>外形</strong>：115 × 67mm、R4，公差 ±0.1。透光区 93.8 × 56.68mm，离左边 14.13、右边 7.07、上下各 5.16（正视图）。</li>
+          <li><strong>丝印在背面</strong>：DXF 是从正面看的图，下单时备注"背印，图纸为正视图"，让厂家自己镜像。</li>
+          <li><strong>白墨印 3 遍</strong>（或白 2 遍再垫一遍浅灰），写明"白色不透光"。只印 1 遍是半透的，会透出后面屏幕的 FPC、胶带和中框的影子。</li>
+          <li>想要方案 A 的侧面也是实心白，可以让厂家把四周切割面喷白封边，或者改用方案 B。</li>
+          <li>墨水屏不显示的边框本身是浅灰白色，透光区四周留的 0.5mm 和白框接得上，看不出一圈黑线。</li>
+          <li>两面保护膜到装配时再撕。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="master">
+        <h2>手板与复模</h2>
+        <ul class="plain">
+          <li><strong>发给手板厂</strong>：<span class="m">master-frame.stl</span>、<span class="m">master-back.stl</span>、<span class="m">master-keys.stl</span>，加上结构页的叠层图和装配顺序。</li>
+          <li><strong>材料</strong>：中框、后盖用 ABS 类 PU（耐温 70～80°C），白色原色或喷哑光白，和面板白框同色；键帽用硬一点的 PU（邵氏 D 80 以上），不然按久了会变形。</li>
+          <li><strong>打印方向</strong>：中框前沿（粘亚克力那面）朝下贴平台，保证粘接面平。</li>
+          <li><strong>复模</strong>：一套硅胶模一般能翻 15～20 件。中框和后盖各一套，3 个键帽可以放在同一套模里。</li>
+          <li><strong>螺丝柱</strong>：PU 件直接用 ST2.0 自攻，拆装十来次没问题，牙滑了换 ST2.2 × 6。<strong>埋不了铜螺母</strong>：M2 铜螺母要 Ø5 以上的螺丝柱，现在的 Ø4.5 柱子外侧离壳外表面只有 0.05、内侧离屏幕玻璃只有 0.29。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="fdm">
+        <h2>FDM 打印</h2>
+        <p><strong>先打试打件</strong>：在 <code>eink-case-fdm.scad</code> 里把 <code>part</code> 改成 <code>"keytest"</code>，导出中框底边按键那一段（44 × 6）加 3 个键帽，十几分钟能打完。装上试：键帽在孔里能自由滑、不晃，翘板压一头另一头不动。太紧把 <code>CLR</code> 加 0.05，太松减 0.05，再打整套。</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>零件</th><th>摆放</th><th>层高</th><th>墙</th><th>支撑</th><th>其他</th></tr></thead>
+            <tbody>
+              <tr><td>中框</td><td>前沿朝下（已摆好）</td><td class="nw">0.16</td><td class="nw">4 圈</td><td>不要</td><td>开孔都是 ≤17mm 的横向桥接；开"象脚补偿" 0.15，不然前沿外扩，亚克力对不齐</td></tr>
+              <tr><td>后盖</td><td>外表面朝下（已摆好）</td><td class="nw">0.16</td><td class="nw">4 圈</td><td>不要</td><td>外表面贴纹理 PEI 板会有磨砂面</td></tr>
+              <tr><td>键帽</td><td>侧躺（已摆好）</td><td class="nw">0.08～0.12</td><td>全实心</td><td>不要</td><td>加 3mm brim；速度 30mm/s、风扇 100%；多打一两套备用</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="plain">
+          <li><strong>材料</strong>：中框、后盖建议用 <strong>PETG</strong>。它没有 PLA 硬，但更韧：摔了是凹、不是裂，自攻螺丝拧几次柱子也不容易裂，70～80°C 才软。PLA 50～60°C 就开始软，充电时充电芯片 U1 上方的后盖会发热，别放在夏天的车里。键帽用 PLA 或 PETG 都行，PLA 的凸棱、凹面更清楚。</li>
+          <li><strong>PETG 参数</strong>：喷嘴 235～245°C、热床 75～85°C；风扇 30～50%，桥接 100%；外墙 ≤40mm/s、桥接 20mm/s；回抽比 PLA 多 0.5～1mm。光面 PEI 先涂固体胶隔离，不然粘太牢会撕坏板面。PETG 一般打得偏胖一点，换料后重打 keytest。</li>
+          <li><strong>颜色</strong>：选"不透光白 / 哑光白"。普通白 PLA、PETG 偏透，1.5mm 侧壁在强光下会透出里面的 PCB。</li>
+          <li><strong>自攻螺丝</strong>：ST2.0 拧到底就停，FDM 件滑牙后很难救。</li>
+        </ul>
+      </section>
+
+      <section class="sec" id="parts">
+        <h2>外购件</h2>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>件</th><th>规格</th><th class="r">数量</th></tr></thead>
+            <tbody>
+              <tr><td>自攻螺丝</td><td>ST2.0 × 6，沉头十字，本色不锈钢</td><td class="r">3</td></tr>
+              <tr><td>尼龙螺丝</td><td>M2 × 6 沉头尼龙，用在天线旁那个角；那个螺丝柱先用 M2 丝锥攻牙</td><td class="r">1</td></tr>
+              <tr><td>双面胶</td><td>0.15～0.17mm 薄型（如 3M 9495LE），按亚克力背面白框形状模切或手裁，白色或透明</td><td class="r">1</td></tr>
+              <tr><td>泡棉</td><td>0.6mm，屏幕背面到 PCB；屏背面缺角处另有支撑片 ST1、泡棉垫 ST2（见器件清单）</td><td class="r">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sec" id="check">
+        <h2>打样后要量的</h2>
+        <ul class="plain">
+          <li><strong>Type-C 插到底</strong>：接口前端离壳外表面约 2mm，有些线的插头塑料头短，可能插不到底。插不到底就在开孔外侧做一个 12.4 × 6.4、深 1.0 的沉台。</li>
+          <li><strong>键帽手感</strong>：间隙合不合适，翘板压一头时另一头会不会一起触发，随手握着会不会误按。</li>
+          <li><strong>面板对位</strong>：屏幕贴到亚克力后，透光区和显示区四边是否都留出约 0.5mm 白边；白框有没有透出后面的影子。</li>
+          <li><strong>充电灯</strong>：插着线时从侧面能不能看清灯亮。</li>
+          <li><strong>CO2 响应</strong>：放在支架上时，CO2 读数响应是否明显变慢；慢的话在后盖通风槽和支架之间加间隙。</li>
+        </ul>
+        <p>已知的下一版 PCB 改进：充电灯 LED1 离 Type-C 中心只有 6.35mm，外壳 v1 只能把灯窗偏开 2.3mm；下一版把 LED1 挪到离 Type-C 中心 ≥ 9mm，灯窗就能正对 LED。</p>
+      </section>
+    </div>
+    <aside class="rail" aria-label="本页导航"></aside>
+  </div>

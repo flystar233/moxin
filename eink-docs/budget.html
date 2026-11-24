@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>功耗与续航 · 墨水屏监控器设计笔记</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@600;900&display=optional" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=JSON.parse(localStorage.getItem('eink.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<style>
+  .opt-table td:first-child { white-space: nowrap; font-weight: 700; }
+  .battery-strip { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: end; padding: 12px 16px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); margin: 0 0 8px; }
+  .battery-strip .ctl { min-width: 200px; flex: 1; }
+  .battery-strip .ro { min-width: 140px; }
+</style>
+</head>
+<body data-sheet="budget">
+<header class="bar"><div class="wrap"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">墨水屏监控器 · 阅读器</span></a><nav class="tabs" aria-label="图纸"><a href="index.html"><span class="n">01</span>首页</a><a href="overview.html"><span class="n">02</span>概览</a><a href="review.html"><span class="n">03</span>评审</a><a href="budget.html" aria-current="page"><span class="n">04</span>功耗与续航</a><a href="power.html"><span class="n">05</span>供电与充电</a><a href="display.html"><span class="n">06</span>墨水屏</a><a href="peripherals.html"><span class="n">07</span>主控与外设</a><a href="pins.html"><span class="n">08</span>引脚</a><a href="schematic.html"><span class="n">09</span>原理图</a><a href="layout.html"><span class="n">10</span>PCB 布局</a><a href="firmware.html"><span class="n">11</span>固件与通信</a><a href="bom.html"><span class="n">12</span>器件清单</a><a href="bringup.html"><span class="n">13</span>打样验收</a></nav><button class="theme-btn" type="button" id="themeBtn" aria-label="切换主题">主题：跟随系统</button></div><div class="bar-prog" aria-hidden="true"></div></header>
+<script>(function(){var t=document.querySelector('.tabs'),c=t&&t.querySelector('[aria-current]');if(c){var o=c.offsetLeft-t.offsetLeft+c.offsetWidth-t.clientWidth;if(o>0)t.scrollLeft=o+40;}try{var v=JSON.parse(localStorage.getItem('eink.theme')),L={light:'浅色',dark:'深色'};if(L[v])document.getElementById('themeBtn').textContent='主题：'+L[v];}catch(e){}})();</script>
+<div class="wrap">
+  <header class="sheet-head"><div class="sh-text">
+    <p class="eyebrow">图纸 <b>04</b> / 13 · v4.45 · PCB 已打样（PCB1 2026-11-06）· 外壳 v1</p>
+    <h1>功耗与续航</h1>
+    <p class="lede">墨水屏保持画面不耗电，所以续航几乎只由两件事决定：深睡时的底电流，以及每次醒来联网花掉的电量。这一页把两者都算出来，作为选 <a class="fx">F3</a> 方案和定低电量门限的依据。所有数字都是估算，拖动滑块可以代入自己的假设。</p>
+    <div class="head-chips"><a class="sev fw" href="#desk" data-f="F3" style="text-decoration:none">F3 固件约定</a></div>
+  </div><aside class="sh-card" aria-label="本页概况"><div class="sh-no">04</div><dl class="sh-stats"><div><dt>章节</dt><dd>6</dd></div><div><dt>评审项</dt><dd>1</dd></div><div><dt>交互</dt><dd>2</dd></div></dl><div class="sh-prog" data-f="F3"><span>本页评审已处理<b>0 / 1</b></span><div class="sh-bar" aria-hidden="true"></div></div></aside></header>
+
+  <div class="body">
+    <div class="main">
+
+      <section class="sec" id="battery">
+        <h2><span class="n">4.1</span>电池与可用容量</h2>
+        <p>下面所有计算器共用这里的电池参数。85% 是放电到 3.3V、并给老化留余量的经验折扣；按 F7 的策略 3.5V 就停止联网，桌面拉取模式实际可用的比例还要再低一些。</p>
+        <div class="battery-strip">
+          <div class="ctl"><div class="ctl-top"><label for="cap">电池标称容量</label><output id="capO"></output></div><input type="range" id="cap" min="800" max="3000" step="50" value="1500"></div>
+          <div class="ctl"><div class="ctl-top"><label for="use">可用比例</label><output id="useO"></output></div><input type="range" id="use" min="70" max="95" step="1" value="85"></div>
+          <div class="ro"><span class="ro-label">可用容量</span><span class="ro-value" id="usable"></span></div>
+        </div>
+      </section>
+
+      <section class="sec" id="floor">
+        <h2><span class="n">4.2</span>深睡底电流</h2>
+        <p>深色段是每项的下限，浅色段延伸到上限。v0.9 把 <a class="ref">U4</a> 从 TLV75733P（约 25µA）换成低静态电流 LDO 后，这一项只剩几微安（v4.32 起是 RT9080，典型 2µA），ESP32 模组自身（10～20µA）和 v1.1 加的电量计 <a class="ref">U10</a>（一直工作，15～20µA）成了最大的两项（见供电页）。</p>
+        <div class="range-bars" id="floorBars"></div>
+        <p class="muted" style="font-size:.88rem">合计 <b class="mono" id="floorSum" style="color:var(--ink)"></b>。来源：<span class="tag verify">待核实</span> 为规格书典型值或经验值，<span class="tag bench">待实测</span> 只能在样板上测。</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>项目</th><th>位号</th><th class="r">电流</th><th>来源</th></tr></thead>
+            <tbody id="floorTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="sec" id="desk">
+        <h2><span class="n">4.3</span>桌面模式：常连还是拉取</h2>
+        <p>原方案让电脑推送数据，同时让 ESP32 深睡，这两者不能同时成立（<a class="fx">F3</a>）。可选的做法有三种：</p>
+        <div class="tbl-wrap">
+          <table class="opt-table">
+            <thead><tr><th>方案</th><th>做法</th><th>事件延迟</th><th>电池续航</th></tr></thead>
+            <tbody>
+              <tr><td>A 常连推送</td><td>Wi-Fi 保持连接并自动浅睡，电脑随时推送</td><td>约 1 秒</td><td id="optA"></td></tr>
+              <tr><td>B 深睡拉取</td><td>每 T 秒醒来，向电脑拉取最新状态后马上睡</td><td>最长 T</td><td id="optB"></td></tr>
+              <tr class="is-new"><td>C 按供电切换（推荐）</td><td>插 USB 用 A；用电池用 B，T = 60 s。电脑离线时 T 逐步拉长到 10 分钟</td><td>插电约 1 秒，电池最长 1 分钟</td><td>插电不计；电池同 B</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel" id="deskPanel">
+          <div class="panel-head"><b>计算器 · 桌面模式续航</b><span><span class="tag calc">计算</span><span class="tag bench">待实测</span></span></div>
+          <div class="panel-body">
+            <div class="controls">
+              <div class="ctl"><div class="ctl-top"><label for="T">方案 B 拉取间隔 T</label><output id="TO"></output></div><input type="range" id="T" min="15" max="600" step="15" value="60"></div>
+              <div class="ctl"><div class="ctl-top"><label for="tw">连 Wi-Fi 用时</label><output id="twO"></output></div><input type="range" id="tw" min="0.3" max="4" step="0.1" value="1.0"></div>
+              <div class="ctl"><div class="ctl-top"><label for="iw">连 Wi-Fi 时电流</label><output id="iwO"></output></div><input type="range" id="iw" min="70" max="160" step="5" value="110"></div>
+              <div class="ctl"><div class="ctl-top"><label for="ia">方案 A 平均电流</label><output id="iaO"></output></div><input type="range" id="ia" min="2" max="15" step="0.5" value="6"></div>
+            </div>
+            <div class="readouts">
+              <div class="ro-row">
+                <div class="ro"><span class="ro-label">每次唤醒</span><span class="ro-value" id="eW"></span></div>
+                <div class="ro"><span class="ro-label">方案 B 平均电流</span><span class="ro-value" id="iB"></span></div>
+              </div>
+              <div class="ro-row">
+                <div class="ro"><span class="ro-label">方案 B 续航</span><span class="ro-value" id="dB"></span></div>
+                <div class="ro"><span class="ro-label">方案 A 续航</span><span class="ro-value" id="dA"></span></div>
+              </div>
+              <div class="verdict ok" id="deskV"></div>
+            </div>
+          </div>
+          <div class="panel-chart chart" id="deskChart"></div>
+          <div class="panel-foot">每次唤醒 = 启动 0.2 s × 40 mA + 连 Wi-Fi + HTTP 0.2 s × 100 mA + 局刷 0.4 s × 25 mA + CO2 单次测量约 1.5 mA·s（U7 测 500ms，ESP32 浅睡等着）。平均电流 = 每次电量 × 3600 / T + 深睡底电流。</div>
+        </div>
+        <p>连 Wi-Fi 用时是最敏感的参数。用 DHCP 并每次扫描信道，要 2～4 秒，续航只剩约 1/3～1/2；所以静态 IP 和缓存 BSSID 是方案 B 的前提（见固件页）。</p>
+        <p><strong>已定 C（<a href="review.html#D1">D1</a>）。</strong>你的使用习惯是插电和用电池各占一半，这个方案两头都照顾到：桌面模式多数时间就在电脑旁边，"等待确认"这类提醒在插电时能即时显示；用电池时晚一分钟可以接受。C 需要固件知道是否插着 USB，这正是 <a class="fx">F4</a> 要加的检测。电脑端常驻程序保存最新状态，设备什么时候来取都能拿到。</p>
+      </section>
+
+      <section class="sec" id="read">
+        <h2><span class="n">4.4</span>看书与听书</h2>
+        <div class="panel">
+          <div class="panel-head"><b>计算器 · 阅读模式续航（书在 TF 卡上）</b><span><span class="tag calc">计算</span></span></div>
+          <div class="panel-body">
+            <div class="controls">
+              <div class="ctl"><div class="ctl-top"><label for="ppm">翻页速度</label><output id="ppmO"></output></div><input type="range" id="ppm" min="0.25" max="3" step="0.25" value="1"></div>
+              <div class="ctl"><div class="ctl-top"><label for="isl">浅睡电流</label><output id="islO"></output></div><input type="range" id="isl" min="0.2" max="2" step="0.1" value="0.6"></div>
+              <div class="ctl"><div class="ctl-top"><label for="itts">听书时整机电流</label><output id="ittsO"></output></div><input type="range" id="itts" min="90" max="230" step="5" value="150"></div>
+            </div>
+            <div class="readouts">
+              <div class="ro"><span class="ro-label">看书平均电流</span><span class="ro-value" id="iRead"></span><span class="ro-sub" id="iReadSub"></span></div>
+              <div class="ro-row">
+                <div class="ro"><span class="ro-label">纯看书</span><span class="ro-value" id="hRead"></span></div>
+                <div class="ro"><span class="ro-label">连续听书</span><span class="ro-value" id="hTts"></span></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel-foot">翻页一次 0.5 s × 40 mA；每 30 页从 TF 卡预读一章，0.3 s × 35 mA，其余时间卡电源关断。听书电流由 ESP32（Wi-Fi 接收 + MP3 解码，100～130 mA）、功放（人声中等音量 20～40 mA）和其余约 5 mA 组成。</div>
+        </div>
+        <p>纯看书的续航以月计，实际由待机时间和充电习惯决定。听书是最耗电的场景，也是 <a class="fx">F7</a> 关心的低电量风险来源。</p>
+      </section>
+
+      <section class="sec" id="states">
+        <h2><span class="n">4.5</span>电源状态</h2>
+        <p>下表的电流都是系统侧（VSYS）估算值，其中"桌面 · 常连"只在插 USB 时进入，不耗电池 <span class="tag calc">计算</span><span class="tag bench">待实测</span>。状态之间怎么切换，可以在固件页的状态机里点一遍。</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>状态</th><th>何时进入</th><th>何时退出</th><th>开着的部分</th><th class="r">电流</th></tr></thead>
+            <tbody>
+              <tr><td>深睡</td><td>桌面刷新完成；阅读 10 分钟无操作</td><td>按键、姿态传感器、PCF8563 或电量计报警（GPIO16）、定时器、插 USB</td><td>RTC 域、LDO、传感器待机、电量计</td><td class="r">≈38～70 µA</td></tr>
+              <tr><td>桌面 · 拉取</td><td>定时唤醒</td><td>拉取并局刷完成，约 1.8 s</td><td>CPU、Wi-Fi、屏</td><td class="r">平均 ≈80 mA</td></tr>
+              <tr><td>桌面 · 常连</td><td>插着 USB</td><td>拔掉 USB</td><td>Wi-Fi 保持连接、自动浅睡</td><td class="r">≈3～10 mA</td></tr>
+              <tr><td>阅读 · 浅睡</td><td>翻页完成</td><td>按键</td><td>PSRAM 保持，CPU 停</td><td class="r">≈0.3～1 mA</td></tr>
+              <tr><td>阅读 · 翻页</td><td>按键</td><td>局刷完成，约 0.5 s</td><td>CPU、屏</td><td class="r">≈40 mA</td></tr>
+              <tr><td>预读章节</td><td>进入阅读或读到章末</td><td>读完，约 0.3 s</td><td>TF 卡</td><td class="r">≈35 mA</td></tr>
+              <tr><td>朗读</td><td>长按菜单键</td><td>暂停或低电量</td><td>Wi-Fi、MP3 解码、功放</td><td class="r">≈125～175 mA</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>深睡会关掉模组内 PSRAM 的供电，预读的章节随之丢失。所以阅读模式先进浅睡，10 分钟无操作才进深睡，再次唤醒时从 TF 卡重读。</p>
+      </section>
+
+      <section class="sec" id="standby">
+        <h2><span class="n">4.6</span>只待机</h2>
+<pre class="calc" id="standbyCalc"></pre>
+      </section>
+
+    </div>
+    <aside class="rail" aria-label="本页导航" data-static><div class="toc-box"><h4>本页</h4><ol class="toc"><li><a href="#battery"><span class="n">4.1</span>电池与可用容量</a></li><li><a href="#floor"><span class="n">4.2</span>深睡底电流</a></li><li><a href="#desk"><span class="n">4.3</span>桌面模式：常连还是拉取</a></li><li><a href="#read"><span class="n">4.4</span>看书与听书</a></li><li><a href="#states"><span class="n">4.5</span>电源状态</a></li><li><a href="#standby"><span class="n">4.6</span>只待机</a></li></ol></div><div><h4>本页评审项</h4><div class="rail-findings"><a href="review.html#F3" data-f="F3"><span class="sev fw">F3</span><span>桌面模式的推送通信与深睡互相矛盾<span class="muted st"></span></span></a></div></div></aside>
+  </div>
+  <div class="titleblock-wrap" data-auto-foot></div>
+</div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(() => {
+  const { el } = APP;
+  const $ = id => document.getElementById(id);
+  const floor = [
+    { name: 'LDO 静态电流（RT9080）', ref: 'U4', lo: 2, hi: 4, src: 'verify' },
+    { name: '电源开关 TPS22917 开启', ref: 'U14', lo: 0.5, hi: 1, src: 'verify' },
+    { name: 'PWR_HOLD 经 D7 流过 R30（1M）', ref: 'R30', lo: 2.5, hi: 3, src: 'calc' },
+    { name: 'ESP32-S3 模组深睡', ref: 'U2', lo: 10, hi: 20, src: 'bench' },
+    { name: '姿态传感器 10Hz 低功耗', ref: 'U8', lo: 3, hi: 6, src: 'verify' },
+    { name: '电池保护板', ref: 'BT1', lo: 3, hi: 6, src: 'verify' },
+    { name: '充电芯片 BAT 端反向电流', ref: 'U1', lo: 1, hi: 3, src: 'verify' },
+    { name: 'D2 反向漏电（常温）', ref: 'D2', lo: 1, hi: 5, src: 'bench' },
+    { name: '时钟芯片（CLKOUT 关，v4.27 起接电池）', ref: 'U6', lo: 0.3, hi: 1, src: 'verify' },
+    { name: 'CO2 睡眠、温湿度、功放、屏控制器', ref: 'U7', lo: 1.5, hi: 4, src: 'verify' },
+    { name: 'TF 卡（Q2 关断后）', ref: 'CARD1', lo: 0, hi: 0.5, src: 'bench' },
+    { name: '电量计（工作模式）', ref: 'U10', lo: 15, hi: 20, src: 'verify' }
+  ];
+  const tagTxt = { verify: '待核实', bench: '待实测', calc: '计算' };
+  const max = Math.max(...floor.map(f => f.hi));
+  const fmtUA = (a, b) => a === b ? a + ' µA' : a + '～' + b + ' µA';
+  floor.forEach(f => {
+    $('floorBars').append(el('div', { class: 'rb', 'data-tip': `${f.name}：${fmtUA(f.lo, f.hi)}（${tagTxt[f.src]}）` },
+      el('div', { class: 'rb-name' }, f.name + ' ', el('a', { class: 'ref', text: f.ref })),
+      el('div', { class: 'rb-track' }, el('div', { class: 'rb-max', style: `width:${f.hi / max * 100}%` }), el('div', { class: 'rb-min', style: `width:${f.lo / max * 100}%` })),
+      el('div', { class: 'rb-val', text: fmtUA(f.lo, f.hi) })));
+    $('floorTable').append(el('tr', null, el('td', { text: f.name }), el('td', null, el('a', { class: 'ref', text: f.ref })), el('td', { class: 'r', text: fmtUA(f.lo, f.hi) }), el('td', null, el('span', { class: 'tag ' + f.src, text: tagTxt[f.src] }))));
+  });
+  const sLo = floor.reduce((a, f) => a + f.lo, 0), sHi = floor.reduce((a, f) => a + f.hi, 0);
+  $('floorSum').textContent = `≈${Math.round(sLo)}～${Math.round(sHi)} µA`;
+  $('floorTable').append(el('tr', { class: 'total' }, el('td', { text: '合计' }), el('td'), el('td', { class: 'r', text: `≈${Math.round(sLo)}～${Math.round(sHi)} µA` }), el('td')));
+  const FLOOR_MA = 0.057; // v4.27 加上 U14 和 R30 两项后取约 55µA；v4.32 LDO 换 RT9080 多约 2µA
+
+  const cssv = n => `var(${n})`;
+  const usable = () => +$('cap').value * +$('use').value / 100;
+  const days = (cap, mA) => cap / mA / 24;
+  const fmtD = d => d >= 100 ? Math.round(d) + '' : d.toFixed(d < 10 ? 1 : 0);
+
+  function wakeE() { // mAh per wake
+    const tw = +$('tw').value, iw = +$('iw').value;
+    return (0.2 * 40 + tw * iw + 0.2 * 100 + 0.4 * 25 + 1.5) / 3600; // v4.29 + CO2 单次测量约 1.5 mA·s（U7 测量 + ESP32 浅睡等 500ms）
+  }
+  function update() {
+    const cap = usable();
+    $('capO').textContent = $('cap').value + ' mAh';
+    $('useO').textContent = $('use').value + ' %';
+    $('usable').innerHTML = Math.round(cap) + '<small>mAh</small>';
+
+    // desk
+    const T = +$('T').value, E = wakeE(), ia = +$('ia').value;
+    $('TO').textContent = T >= 60 ? (T / 60).toFixed(T % 60 ? 2 : 0).replace(/\.?0+$/, '') + ' 分钟' : T + ' 秒';
+    $('twO').textContent = (+$('tw').value).toFixed(1) + ' s';
+    $('iwO').textContent = $('iw').value + ' mA';
+    $('iaO').textContent = ia + ' mA';
+    const iB = E * 3600 / T + FLOOR_MA;
+    const dB = days(cap, iB), dA = days(cap, ia);
+    $('eW').innerHTML = (E * 1000).toFixed(1) + '<small>µAh</small>';
+    $('iB').innerHTML = iB.toFixed(2) + '<small>mA</small>';
+    $('dB').innerHTML = fmtD(dB) + '<small>天</small>';
+    $('dA').innerHTML = fmtD(dA) + '<small>天</small>';
+    $('optA').textContent = `≈${ia} mA → ${fmtD(dA)} 天（拖动下方计算器）`;
+    $('optB').textContent = `T = ${$('TO').textContent} → ${fmtD(dB)} 天`;
+    const v = $('deskV');
+    if (dB >= 21) APP.verdict(v, 'ok', `方案 B 用电池约 ${fmtD(dB)} 天，事件最多晚 ${$('TO').textContent} 显示。`);
+    else if (dB >= 10) APP.verdict(v, 'warn', `方案 B 约 ${fmtD(dB)} 天，两周左右要充一次电。`);
+    else APP.verdict(v, 'crit', `方案 B 只有约 ${fmtD(dB)} 天，间隔太短或连网太慢。`);
+
+    const pts = [];
+    for (let t = 15; t <= 600; t += 15) pts.push([t, days(cap, E * 3600 / t + FLOOR_MA)]);
+    const yMaxRaw = Math.max(pts[pts.length - 1][1], days(cap, 2));
+    const step = yMaxRaw > 200 ? 100 : yMaxRaw > 100 ? 50 : 25;
+    const yMax = Math.ceil(yMaxRaw / step) * step;
+    const ticks = []; for (let y = 0; y <= yMax; y += step) ticks.push(y);
+    APP.lineChart($('deskChart'), {
+      label: '方案 B 续航随拉取间隔变化', height: 250,
+      x: { min: 0, max: 600, ticks: [0, 60, 120, 180, 300, 420, 600], fmt: t => t >= 60 ? (t / 60) + 'min' : t + 's', tipFmt: t => 'T = ' + (t >= 60 ? (t / 60).toFixed(2).replace(/\.?0+$/, '') + ' 分钟' : t + ' 秒'), title: '拉取间隔 T' },
+      y: { min: 0, max: yMax, ticks, fmt: d => d + '', tipFmt: d => fmtD(d) + ' 天', title: '续航（天）' },
+      series: [{ name: '方案 B', color: cssv('--mask'), pts }],
+      bands: [{ y0: days(cap, 10), y1: days(cap, 3), label: '方案 A 常连' }],
+      markers: [{ x: T, ys: [{ y: dB, color: cssv('--copper') }] }]
+    });
+
+    // reading
+    const ppm = +$('ppm').value, isl = +$('isl').value, itts = +$('itts').value;
+    $('ppmO').textContent = ppm + ' 页/分钟';
+    $('islO').textContent = isl.toFixed(1) + ' mA';
+    $('ittsO').textContent = itts + ' mA';
+    const pagesH = ppm * 60;
+    const flip = pagesH * 0.5 * 40 / 3600, dl = pagesH / 30 * 0.3 * 35 / 3600;
+    const iRead = flip + dl + isl;
+    $('iRead').innerHTML = iRead.toFixed(2) + '<small>mA</small>';
+    $('iReadSub').textContent = `翻页 ${flip.toFixed(2)} + 读卡 ${dl.toFixed(3)} + 浅睡 ${isl.toFixed(2)}`;
+    $('hRead').innerHTML = Math.round(cap / iRead) + '<small>小时</small>';
+    $('hTts').innerHTML = (cap / itts).toFixed(1) + '<small>小时</small>';
+
+    $('standbyCalc').innerHTML = `${Math.round(cap)} mAh / ${FLOOR_MA} mA ≈ ${Math.round(cap / FLOOR_MA).toLocaleString()} h ≈ <b>${(cap / FLOOR_MA / 24 / 365).toFixed(1)} 年</b>\n<span class="dim">实际受锂电池自放电（每月约 2～3%）限制，放半年仍有电</span>
+<span class="dim">长期不用时长按 SW3 关机，只剩电池保护板、U1 和 D2 的漏电（合计约 5～14µA）、睡眠的电量计 U10 约 0.5µA（v4.43 关机前由固件让它睡）和时钟 U6 的约 0.3µA（关机也走时），合计约 6～15µA，每月约 4～11mAh</span>`;
+  }
+  ['cap', 'use', 'T', 'tw', 'iw', 'ia', 'ppm', 'isl', 'itts'].forEach(id => $(id).addEventListener('input', update));
+  update();
+})();
+</script>
+</body>
+</html>
