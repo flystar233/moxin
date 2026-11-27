@@ -20,11 +20,12 @@ static void defaults(Settings &s) {
   s.tapThr = TAP_THR_DEFAULT;
   s.pfBlack = EPD_PARTIAL_FRAMES;
   s.pfWhite = EPD_PARTIAL_WHITE_EXTRA;
-  s.ttsModel = TTS_MODEL;
+  s.ttsModel = TTS_MODEL_EDGE;
   s.ttsWs = "";
   s.ttsKey = "";
-  s.ttsVoice = TTS_VOICE;
+  s.ttsVoice = TTS_VOICE_EDGE;
   s.ttsVolume = TTS_VOL_DEFAULT;
+  s.ttsSpeed = TTS_SPEED_DEFAULT;
   s.ttsAutoPage = true;
   s.autoDesk = true;
   s.wifiOn = true;
@@ -62,10 +63,13 @@ void settingsLoad() {
   s.pfBlack = s_nvs.getUChar("pfB", s.pfBlack);
   s.pfWhite = s_nvs.getUChar("pfW", s.pfWhite);
   s.ttsModel = s_nvs.getString("ttsModel", s.ttsModel);
+  // 老固件存的是 qwen3-tts-flash，这个模型已经没了，统一当成 Edge 朗读
+  if (s.ttsModel != TTS_MODEL_EDGE && s.ttsModel != TTS_MODEL_PLUS) s.ttsModel = TTS_MODEL_EDGE;
   s.ttsWs = s_nvs.getString("ttsWs", s.ttsWs);
   s.ttsKey = s_nvs.getString("ttsKey", s.ttsKey);
   s.ttsVoice = s_nvs.getString("ttsVoice", s.ttsVoice);
   s.ttsVolume = constrain(s_nvs.getUChar("ttsVol", s.ttsVolume), 0, 100);
+  s.ttsSpeed = constrain(s_nvs.getFloat("ttsSpeed", s.ttsSpeed), TTS_SPEED_MIN, TTS_SPEED_MAX);
   s.ttsAutoPage = s_nvs.getBool("ttsPage", s.ttsAutoPage);
   s.autoDesk = s_nvs.getBool("autoDesk", s.autoDesk);
   s.wifiOn = s_nvs.getBool("wifiOn", s.wifiOn);
@@ -98,6 +102,7 @@ void settingsSave() {
   s_nvs.putString("ttsKey", s.ttsKey);
   s_nvs.putString("ttsVoice", s.ttsVoice);
   s_nvs.putUChar("ttsVol", s.ttsVolume);
+  s_nvs.putFloat("ttsSpeed", s.ttsSpeed);
   s_nvs.putBool("ttsPage", s.ttsAutoPage);
   s_nvs.putBool("autoDesk", s.autoDesk);
   s_nvs.putBool("wifiOn", s.wifiOn);

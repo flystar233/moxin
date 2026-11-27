@@ -1,5 +1,5 @@
 #pragma once
-// 小说语音朗读：按句向 qwen3-tts-flash 要音频，边下边播。
+// 小说语音朗读：按句向 Edge 朗读（免费）/ qwen-audio-3.1-tts-plus 要音频，边下边播。
 //
 // 一条主线程 + 两个后台任务：
 //   主线程（tick）：从正文里按句切分，排队等合成；跟着正在播的那一句自动翻页；
@@ -40,6 +40,7 @@ Event pollEvent(String &msg);
 
 // 设置界面用：改完设置马上生效
 void setVolume(int vol);
+void setSpeed(float speed);  // 语速倍率（0.5～2.0），下一句生效
 void setVoice(const String &voice);
 void setKey(const String &key);
 void setModel(const String &model, const String &workspace);

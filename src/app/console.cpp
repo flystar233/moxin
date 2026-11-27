@@ -18,6 +18,7 @@
 #include "ui/gfx.h"
 #include "ui/views.h"
 #include "voice/tts.h"
+#include "voice/edge_drm.h"
 
 static String s_line;
 static bool s_poseLog = false;
@@ -33,8 +34,8 @@ static void printHelp() {
       "姿态  pose | poselog | tapdbg on/off | keys 按键电平\n"
       "省电  sleep on/off 浅睡 | sleepforce on/off 插着 USB 也睡 | deep [秒] 马上深睡（测试）\n"
       "声音  beep [Hz] [ms] [音量%] 单音（默认 1000 500 30）| sweep [音量%] 扫频 100～8000Hz | scale [音量%] 音阶\n"
-      "朗读  tts 状态 | tts model flash|plus | tts ws <业务空间ID>（clear 清除）| tts key sk-...（clear）\n"
-      "      tts voice <名字>（不带参数列出来）| tts vol 70 | tts play 从本页念 | tts say 一段文字 | tts stop | tts next / prev\n"
+      "朗读  tts 状态 | tts model edge|plus | tts ws <业务空间ID>（clear 清除）| tts key sk-...（clear）\n"
+      "      tts voice <名字>（不带参数列出来）| tts speed 1.25（0.5～2）| tts vol 70 | tts play 从本页念 | tts say 一段文字 | tts stop | tts next / prev\n"
       "其他  time 2026-11-08 21:30:00 对时 | info 状态 | mem 内存 | cache clear 清阅读缓存（重新导入）\n"
       "TF 卡 fls [目录] | frm <路径> | fdf | 传文件用电脑上的 tools/tfcard.py");
 }
@@ -83,15 +84,19 @@ static void handle(String c) {
   else if (c == "tts") {
     Serial.printf("语音朗读：%s\n", tts::active() ? tts::statusText().c_str() : "没在朗读");
     Serial.printf("  模型 %s\n", tts::modelLabel(settings().ttsModel).c_str());
-    Serial.printf("  音色 %s，音量 %u%%，自动翻页 %s\n",
-                  tts::voiceLabel(settings().ttsModel, settings().ttsVoice).c_str(), settings().ttsVolume,
-                  settings().ttsAutoPage ? "开" : "关");
+    Serial.printf("  音色 %s，语速 %.2f 倍，音量 %u%%，自动翻页 %s\n",
+                  tts::voiceLabel(settings().ttsModel, settings().ttsVoice).c_str(), settings().ttsSpeed,
+                  settings().ttsVolume, settings().ttsAutoPage ? "开" : "关");
     Serial.printf("  API Key %s；业务空间 ID %s；Wi-Fi %s\n", settings().ttsKey.length() ? "已设置" : "未设置",
                   settings().ttsWs.length() ? "已设置" : "未设置",
                   net::hasCredentials() ? net::savedSsid().c_str() : "未配网");
-    Serial.printf("  本次已合成 %lu 字，约 %.3f 元（按 %.2f 元/万字符算）\n", (unsigned long)tts::charsUsed(),
-                  tts::charsUsed() * tts::modelPrice(settings().ttsModel) / 10000.0,
-                  tts::modelPrice(settings().ttsModel));
+    if (tts::modelPrice(settings().ttsModel) <= 0) {
+      Serial.printf("  本次已合成 %lu 字（免费）\n", (unsigned long)tts::charsUsed());
+    } else {
+      Serial.printf("  本次已合成 %lu 字，约 %.3f 元（按 %.2f 元/万字符算）\n", (unsigned long)tts::charsUsed(),
+                    tts::charsUsed() * tts::modelPrice(settings().ttsModel) / 10000.0,
+                    tts::modelPrice(settings().ttsModel));
+    }
     if (tts::active())
       Serial.printf("  正在读正文 %lu 字节处（%.1f%%）\n", (unsigned long)tts::offset(),
                     bookSize() ? 100.0 * tts::offset() / bookSize() : 0.0);
@@ -101,9 +106,11 @@ static void handle(String c) {
     if (!a.length()) {
       for (int i = 0; i < tts::modelCount(); i++)
         Serial.printf("  %-28s %s\n", tts::modelId(i), tts::modelLabel(tts::modelId(i)).c_str());
-      Serial.printf("现在：%s（别名 flash / plus 也能用）\n", tts::modelLabel(settings().ttsModel).c_str());
+      Serial.printf("现在：%s（别名 edge / plus 也能用）\n", tts::modelLabel(settings().ttsModel).c_str());
     } else {
-      String m = a.equalsIgnoreCase("flash") ? String(TTS_MODEL) : a.equalsIgnoreCase("plus") ? String(TTS_MODEL_PLUS) : a;
+      String m = (a.equalsIgnoreCase("edge") || a.equalsIgnoreCase("flash")) ? String(TTS_MODEL_EDGE)
+                 : a.equalsIgnoreCase("plus")                            ? String(TTS_MODEL_PLUS)
+                                                                         : a;
       settings().ttsModel = m;
       settings().ttsVoice = tts::defaultVoice(m);
       tts::setModel(m, settings().ttsWs);
@@ -154,6 +161,22 @@ static void handle(String c) {
       tts::setVolume(v);
     }
     Serial.printf("朗读音量：%u%%\n", settings().ttsVolume);
+  } else if (c.startsWith("tts speed")) {
+    String a = c.substring(9);
+    a.trim();
+    if (a.length()) {
+      float v = constrain(a.toFloat(), TTS_SPEED_MIN, TTS_SPEED_MAX);
+      settings().ttsSpeed = v;
+      settingsSave();
+      tts::setSpeed(v);
+    }
+    Serial.printf("朗读语速：%.2f 倍（下一句生效）\n", settings().ttsSpeed);
+  } else if (c.startsWith("tts token")) {
+    // 调试用：按某个时间戳算 Sec-MS-GEC 令牌，和电脑上 edge-tts 的输出对一下
+    String a = c.substring(9);
+    a.trim();
+    uint32_t ts = a.length() ? (uint32_t)a.toInt() : (uint32_t)time(nullptr);
+    Serial.printf("令牌 %s\n", tts::edgeSecMsGec(ts).c_str());
   } else if (c == "tts play") {
     String why;
     if (!tts::ready(&why)) {
@@ -278,6 +301,8 @@ static void handle(String c) {
     motionGravity(t, k, n);
     Serial.printf("上方轴 %+.2f  按键轴 %+.2f  法线 %+.2f  → %s%s\n", t, k, n, poseName(motionPose()), motionFlat() ? "（平放）" : "");
   } else if (c == "poselog") s_poseLog = !s_poseLog;
+  else if (c == "posedesk") postEvent(EV_POSE, POSE_DESK);  // 调试：模拟翻到横放
+  else if (c == "poseread") postEvent(EV_POSE, POSE_READ);  // 调试：模拟翻回竖拿
   else if (c == "cal") app::push(newCalView());
   else if (c == "wifi") app::push(newWifiSetupView());
   else if (c == "xfer") app::push(newTransferView());

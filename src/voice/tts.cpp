@@ -29,15 +29,24 @@ struct ModelDef {
   const char *id;
   const char *label;
 };
-const ModelDef MODELS[] = {{TTS_MODEL, "qwen3-tts-flash"}, {TTS_MODEL_PLUS, "qwen-audio-3.1-tts-plus"}};
+const ModelDef MODELS[] = {{TTS_MODEL_EDGE, "Edge 朗读（免费）"}, {TTS_MODEL_PLUS, "qwen-audio-3.1-tts-plus"}};
 
 struct VoiceDef {
   const char *id;
   const char *label;
 };
-const VoiceDef FLASH_VOICES[] = {
-    {"Cherry", "芊悦（女）"},   {"Serena", "苏瑶（女）"}, {"Ethan", "晨煦（男）"},  {"Chelsie", "千雪（女）"},
-    {"Dylan", "晓东（京腔）"}, {"Jada", "阿珍（沪语）"}, {"Sunny", "小雅（川话）"},
+// 微软 Edge 的中文神经网络音色（和浏览器「大声朗读」里的是同一套）
+const VoiceDef EDGE_VOICES[] = {
+    {"zh-CN-XiaoxiaoNeural", "晓晓（女，温暖）"},
+    {"zh-CN-YunxiNeural", "云希（男，阳光）"},
+    {"zh-CN-XiaoyiNeural", "晓伊（女，活泼）"},
+    {"zh-CN-YunjianNeural", "云健（男，激昂）"},
+    {"zh-CN-YunyangNeural", "云扬（男，播音）"},
+    {"zh-CN-YunxiaNeural", "云夏（男童）"},
+    {"zh-CN-liaoning-XiaobeiNeural", "晓北（东北话）"},
+    {"zh-CN-shaanxi-XiaoniNeural", "晓妮（陕西话）"},
+    {"zh-HK-HiuMaanNeural", "曉曼（粤语）"},
+    {"zh-TW-HsiaoChenNeural", "曉臻（台湾）"},
 };
 const VoiceDef PLUS_VOICES[] = {
     {"longanlingxin_v3.1", "龙安灵心（女）"},
@@ -53,11 +62,11 @@ const VoiceDef *voicesOf(const String &model, int &count) {
     count = (int)(sizeof(PLUS_VOICES) / sizeof(PLUS_VOICES[0]));
     return PLUS_VOICES;
   }
-  count = (int)(sizeof(FLASH_VOICES) / sizeof(FLASH_VOICES[0]));
-  return FLASH_VOICES;
+  count = (int)(sizeof(EDGE_VOICES) / sizeof(EDGE_VOICES[0]));
+  return EDGE_VOICES;
 }
 
-const char *defaultVoiceId(const String &model) { return isPlusModelId(model) ? TTS_VOICE_PLUS : TTS_VOICE; }
+const char *defaultVoiceId(const String &model) { return isPlusModelId(model) ? TTS_VOICE_PLUS : TTS_VOICE_EDGE; }
 
 bool voiceKnown(const String &model, const String &name) {
   int n = 0;
@@ -112,6 +121,7 @@ int s_vol = TTS_VOL_DEFAULT;
 
 String s_taskErr;
 String s_model, s_ws, s_voice, s_key;
+float s_speed = TTS_SPEED_DEFAULT;  // 语速倍率（下一句生效）
 volatile uint32_t s_chars = 0;  // 本次会话已经合成多少字
 
 Event s_event = EV_NONE;
@@ -237,6 +247,7 @@ int queueSize() {
 // =====================================================================
 void netTask(void *) {
   RingSink sink;
+  Client client;  // 整个会话复用一条 Edge 连接（每句新建连接要 1 秒多，会卡）
   while (!s_stop) {
     Item it;
     if (!queuePop(it)) {
@@ -248,13 +259,14 @@ void netTask(void *) {
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     pr.model = s_model;
     pr.voice = s_voice;
+    pr.speed = s_speed;
     pr.key = s_key;
     pr.workspace = s_ws;
     xSemaphoreGive(s_mtx);
 
     s_netBusy = true;
     uint32_t before = s_written;
-    SynthResult r = synthesize(it.text, pr, sink, &s_stop);
+    SynthResult r = client.speak(it.text, pr, sink, &s_stop);
     s_netBusy = false;
     if (s_stop) break;
     if (r.ok) s_chars += utf8Chars(it.text);
@@ -274,6 +286,7 @@ void netTask(void *) {
       break;
     }
   }
+  client.close();
   xSemaphoreGive(s_done);
   vTaskDelete(nullptr);
 }
@@ -282,6 +295,7 @@ void audioTask(void *) {
   static int16_t pcm[1024];  // 最长 512 采样 = 21ms
   bool opened = false;
   uint32_t lastData = 0, firstAt = 0;
+  uint32_t gaps = 0, gapAt = 0, maxGap = 0;  // 播放中断统计（调试用）
   while (!s_stop) {
     if (s_paused) {
       if (opened) {
@@ -292,11 +306,11 @@ void audioTask(void *) {
       vTaskDelay(pdMS_TO_TICKS(30));
       continue;
     }
-    // 一句刚开始：先攒 0.3 秒再出声，免得服务端头几段来得慢、一放就断
+    // 一句刚开始：先攒够 2 秒再出声（最多等 1.5 秒），免得服务端头几段来得慢、一放就断
     if (!opened) {
       size_t have = ringUsed();
       if (have && !firstAt) firstAt = millis();
-      if (have < 16384 && firstAt && millis() - firstAt < 500) {
+      if (have < 96 * 1024 && firstAt && millis() - firstAt < 1500) {
         vTaskDelay(pdMS_TO_TICKS(10));
         continue;
       }
@@ -318,8 +332,17 @@ void audioTask(void *) {
       audioWriteMono(pcm, got / 2);
       s_played += (uint32_t)(got & ~(size_t)1);
       lastData = millis();
+      gapAt = 0;
     } else {
       // 两句之间有一小段空：先不关功放（开着安静），超过 3 秒才关（省电、也没底噪）
+      if (opened) {
+        if (!gapAt) {
+          gapAt = millis();
+          gaps++;
+        }
+        uint32_t g = millis() - gapAt;
+        if (g > maxGap) maxGap = g;
+      }
       if (opened && millis() - lastData > 3000) {
         audioEnd();
         opened = false;
@@ -329,6 +352,7 @@ void audioTask(void *) {
       }
     }
   }
+  if (gaps) Serial.printf("[朗读] 播放中断 %lu 次，最长 %lu ms\n", (unsigned long)gaps, (unsigned long)maxGap);
   if (opened) audioEnd();
   xSemaphoreGive(s_done);
   vTaskDelete(nullptr);
@@ -384,11 +408,10 @@ void stopInternal(bool wifiOff) {
     }
     s_ringCap = 0;
   } else {
-    // 任务还卡在网络里：缓冲、信号量都不动（宁可漏一点内存，也不能在任务还在用的时候 free）
-    s_mtx = nullptr;
-    s_done = nullptr;
-    s_ring = nullptr;
-    s_ringCap = 0;
+    // 任务还卡在网络里：缓冲、信号量都不能动。旧代码在这里把 s_mtx 置空，
+    // 卡住的任务下一次 queuePop 就会 xSemaphoreTake(NULL) 断言重启。
+    // 现在网络读写都响应 stop，正常情况下不会走到这儿。
+    Serial.println("[朗读] 任务没退干净，保留缓冲等它自己结束");
   }
   s_state = ST_IDLE;
   s_say = false;
@@ -397,6 +420,7 @@ void stopInternal(bool wifiOff) {
   s_failed = false;
   s_netBusy = false;
   if (wifiOff) {
+    WiFi.setSleep(true);  // 恢复 Wi-Fi 省电
     net::off();
     setCpuFrequencyMhz(CPU_MHZ);
   }
@@ -428,11 +452,12 @@ bool beginSession(uint32_t off, bool say, const String &text) {
     s_taskErr = "Wi-Fi 已关闭（系统设置 → Wi-Fi）";
     return false;
   }
-  if (!st.ttsKey.length()) {
-    s_taskErr = "还没设置语音 API Key";
+  String model = st.ttsModel.length() ? st.ttsModel : String(TTS_MODEL_EDGE);
+  if (!isPlusModelId(model)) model = TTS_MODEL_EDGE;  // 老设置里可能是 qwen3-tts-flash，统一算 Edge
+  if (isPlusModelId(model) && !st.ttsKey.length()) {
+    s_taskErr = "这个模型要先填 API Key";
     return false;
   }
-  String model = st.ttsModel.length() ? st.ttsModel : String(TTS_MODEL);
   if (isPlusModelId(model) && !st.ttsWs.length()) {
     s_taskErr = "这个模型要先填业务空间 ID";
     return false;
@@ -460,6 +485,7 @@ bool beginSession(uint32_t off, bool say, const String &text) {
       return false;
     }
   }
+  WiFi.setSleep(false);  // 朗读时关掉 Wi-Fi 省电：开着的话音频流会一顿一顿的
 
   // 预读缓冲：PSRAM 不够就往下降
   s_ring = nullptr;
@@ -510,6 +536,7 @@ bool beginSession(uint32_t off, bool say, const String &text) {
   s_voice = voice;
   s_key = st.ttsKey;
   s_vol = st.ttsVolume;
+  s_speed = constrain(st.ttsSpeed, TTS_SPEED_MIN, TTS_SPEED_MAX);
   s_chars = 0;
   ringClear();
   if (say) {
@@ -548,9 +575,9 @@ bool beginSession(uint32_t off, bool say, const String &text) {
 bool ready(String *why) {
   const Settings &st = settings();
   String w;
-  String model = st.ttsModel.length() ? st.ttsModel : String(TTS_MODEL);
+  String model = st.ttsModel.length() ? st.ttsModel : String(TTS_MODEL_EDGE);
   if (!st.wifiOn) w = "Wi-Fi 已关闭";
-  else if (!st.ttsKey.length()) w = "还没设置 API Key";
+  else if (isPlusModelId(model) && !st.ttsKey.length()) w = "这个模型要填 API Key";
   else if (isPlusModelId(model) && !st.ttsWs.length()) w = "这个模型要填业务空间 ID";
   else if (!net::hasCredentials()) w = "还没配网";
   if (why) *why = w;
@@ -633,6 +660,18 @@ void setVolume(int vol) {
   audioSetVolume(s_vol);
 }
 
+// 语速只影响后一句开始合成的那一句
+void setSpeed(float speed) {
+  float v = constrain(speed, TTS_SPEED_MIN, TTS_SPEED_MAX);
+  if (!s_mtx) {
+    s_speed = v;
+    return;
+  }
+  xSemaphoreTake(s_mtx, portMAX_DELAY);
+  s_speed = v;
+  xSemaphoreGive(s_mtx);
+}
+
 void setVoice(const String &voice) {
   if (!s_mtx) {
     s_voice = voice;
@@ -654,7 +693,8 @@ void setKey(const String &key) {
 }
 
 void setModel(const String &model, const String &workspace) {
-  String m = model.length() ? model : String(TTS_MODEL);
+  String m = model.length() ? model : String(TTS_MODEL_EDGE);
+  if (!isPlusModelId(m)) m = TTS_MODEL_EDGE;
   String v = s_voice;
   if (!voiceKnown(m, v)) v = defaultVoiceId(m);
   if (!s_mtx) {
@@ -687,6 +727,7 @@ void tick() {
     xSemaphoreTake(s_mtx, portMAX_DELAY);
     msg = s_taskErr;
     xSemaphoreGive(s_mtx);
+    Serial.printf("[朗读] 失败：%s\n", msg.c_str());
     stopInternal(true);
     s_event = EV_ERROR;
     s_eventMsg = msg;
@@ -770,11 +811,12 @@ const char *modelId(int i) { return MODELS[constrain(i, 0, modelCount() - 1)].id
 String modelLabel(const String &model) {
   for (const ModelDef &m : MODELS)
     if (model == m.id) return m.label;
-  return model.length() ? model : String(TTS_MODEL);
+  return String(MODELS[0].label);
 }
 
 String defaultVoice(const String &model) { return defaultVoiceId(model); }
-float modelPrice(const String &model) { return isPlusModelId(model) ? TTS_PRICE_PLUS : TTS_PRICE_FLASH; }
+// 元/万字符（Edge 朗读免费，返回 0）
+float modelPrice(const String &model) { return isPlusModelId(model) ? TTS_PRICE_PLUS : 0.0f; }
 
 int voiceCount(const String &model) {
   int n = 0;
@@ -792,7 +834,7 @@ String voiceLabel(const String &model, const String &name) {
   int n = 0;
   const VoiceDef *v = voicesOf(model, n);
   for (int i = 0; i < n; i++)
-    if (name == v[i].id) return String(v[i].id) + " " + v[i].label;
+    if (name == v[i].id) return v[i].label;  // 菜单里只显示中文名，名字太长会把左边的标题挤掉
   return name.length() ? name : String(defaultVoiceId(model));
 }
 

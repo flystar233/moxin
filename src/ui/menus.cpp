@@ -57,8 +57,6 @@ class ReaderMenu : public MenuView {
                      tts::togglePause();
                      app::popToRoot(Refresh::Full);
                    }});
-      m.push_back({"上一句", nullptr, [] { tts::prevSentence(); app::popToRoot(Refresh::Partial); }});
-      m.push_back({"下一句", nullptr, [] { tts::nextSentence(); app::popToRoot(Refresh::Partial); }});
       m.push_back({"停止朗读", nullptr, [] {
                      tts::stop();
                      app::popToRoot(Refresh::Full);
@@ -171,8 +169,15 @@ class ReadingSettings : public MenuView {
 View *newReadingSettings() { return new ReadingSettings(); }
 
 // =====================================================================
-// 朗读设置：模型、音色、音量、自动翻页、业务空间 ID、API Key、试听
+// 朗读设置：模型、音色、语速、音量、自动翻页、业务空间 ID、API Key、试听
 // =====================================================================
+static float nextSpeed(float cur) {
+  static const float STEPS[] = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+  for (float v : STEPS)
+    if (v > cur + 0.001f) return v;
+  return STEPS[0];
+}
+
 class VoiceSettings : public MenuView {
  public:
   VoiceSettings() : MenuView("朗读设置") {}
@@ -203,6 +208,14 @@ class VoiceSettings : public MenuView {
                      if (s.ttsVoice == tts::voiceName(s.ttsModel, i)) break;
                    s.ttsVoice = tts::voiceName(s.ttsModel, (i + 1) % n);
                    tts::setVoice(s.ttsVoice);  // 正在念的话，下一句就用新音色
+                   settingsSave();
+                   refresh();
+                 }});
+    m.push_back({"语速", [] { return String(settings().ttsSpeed, 2) + " 倍"; },
+                 [this] {
+                   Settings &s = settings();
+                   s.ttsSpeed = nextSpeed(s.ttsSpeed);
+                   tts::setSpeed(s.ttsSpeed);  // 下一句生效
                    settingsSave();
                    refresh();
                  }});
@@ -239,13 +252,6 @@ class VoiceSettings : public MenuView {
                    return out;
                  },
                  [] { app::toast("在 系统设置 → Wi-Fi → 无线传输 的网页里填", "也可以串口：tts key sk-...", 4500); }});
-    m.push_back({"本次已合成", [] {
-                   char b[48];
-                   snprintf(b, sizeof(b), "%lu 字，约 %.3f 元", (unsigned long)tts::charsUsed(),
-                            tts::charsUsed() * tts::modelPrice(settings().ttsModel) / 10000.0);
-                   return String(b);
-                 },
-                 nullptr});
     m.push_back({"试听一段", nullptr, [] {
                    String why;
                    if (!tts::ready(&why)) {

@@ -96,14 +96,16 @@ ul{list-style:none;margin:0;padding:0}li{display:flex;align-items:center;gap:10p
 <div class=drop id=dropB>把书拖到这里，或 <label class=btn>选择文件<input type=file id=fB multiple accept=".txt,.epub" hidden></label></div></div>
 <h2>字库（.efnt）</h2><div class=card><ul id=fonts><li class=sub>…</li></ul>
 <div class=drop id=dropF>把字库拖到这里，或 <label class=btn>选择文件<input type=file id=fF multiple accept=".efnt" hidden></label></div></div>
-<h2>语音朗读</h2><div class=card><p class=sub>阿里云百炼的 API Key（sk- 开头，存在设备里，只用来说书）。<br>第二个模型 <b>qwen-audio-3.1-tts-plus</b> 还要填业务空间 ID（百炼控制台右上角图标里复制），它更贵但音质更好、有免费额度。</p>
-<div style="display:flex;gap:8px;margin-bottom:8px"><input id=ttsKey type=password placeholder="sk-..." autocomplete=off style="flex:1;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
+<h2>语音朗读</h2><div class=card><p class=sub><b>Edge 朗读</b> 免费，不用填 Key；设备时间要对（开机自动联网对时）。<br><b>qwen-audio-3.1-tts-plus</b> 是阿里云百炼的专业模型：要 API Key（sk- 开头）和业务空间 ID（百炼控制台右上角图标里复制），约 1.44 元/万字符、有免费额度。</p>
+<div style="display:flex;gap:8px;margin-bottom:8px"><input id=ttsKey type=password placeholder="sk-...（只有 plus 用）" autocomplete=off style="flex:1;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
 <button class=btn id=ttsSave>保存 Key</button></div>
 <div style="display:flex;gap:8px;align-items:center"><select id=ttsModel style="flex:1;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
-<option value="qwen3-tts-flash">qwen3-tts-flash（0.8 元/万字符）</option>
+<option value="edge">Edge 朗读（免费）</option>
 <option value="qwen-audio-3.1-tts-plus">qwen-audio-3.1-tts-plus（约 1.44 元/万字符）</option></select>
 <button class=btn id=ttsSaveModel>保存模型</button></div>
 <input id=ttsWs placeholder="业务空间 ID（plus 用）" style="width:100%;box-sizing:border-box;margin-top:8px;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
+<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id=ttsSpeed type=number step=0.05 min=0.5 max=2 placeholder="语速（0.5～2）" style="flex:1;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
+<button class=btn id=ttsSaveSpeed>保存语速</button></div>
 <p class=sub id=ttsSt>…</p></div>
 <h2>固件升级</h2><div class=card><p class=sub>选 firmware.bin（电脑上 app/.pio/build/pcb1/ 里）。传完设备自动重启，书、进度和设置都不会丢；传坏了也还是原来的固件。</p>
 <label class=btn>选择 firmware.bin<input type=file id=fW accept=".bin" hidden></label></div>
@@ -127,14 +129,18 @@ $('fB').onchange=e=>up('/upload?dir=/books',[...e.target.files],0);
 $('fF').onchange=e=>up('/upload?dir=/fonts',[...e.target.files],0);
 $('fW').onchange=e=>{const f=e.target.files[0];if(f&&confirm('用 '+f.name+' 升级固件？传完设备会重启'))up('/fw',[f],0)};
 function ttsInfo(){fetch('/api/tts').then(r=>r.json()).then(j=>{
- $('ttsSt').textContent=(j.key?('Key 已设置（…'+j.tail+'）'):'Key 未设置')+' · 模型 '+j.model+' · 音色 '+j.voice+' · 音量 '+j.vol+'%';
- if(j.model)$('ttsModel').value=j.model; $('ttsWs').value=j.ws||'';});}
+ $('ttsSt').textContent=(j.key?('Key 已设置（…'+j.tail+'）'):'Key 未设置')+' · 模型 '+j.model+' · 音色 '+j.voice+' · 语速 '+j.speed+' 倍 · 音量 '+j.vol+'%';
+ if(j.model)$('ttsModel').value=j.model; $('ttsWs').value=j.ws||''; $('ttsSpeed').value=j.speed;});}
 $('ttsSave').onclick=()=>{const k=$('ttsKey').value.trim();if(!k)return;
  fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key='+encodeURIComponent(k)})
   .then(r=>r.json()).then(j=>{$('ttsSt').textContent=j.msg;if(j.ok)$('ttsKey').value='';ttsInfo()});};
 $('ttsSaveModel').onclick=()=>{
  fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
   body:'model='+encodeURIComponent($('ttsModel').value)+'&ws='+encodeURIComponent($('ttsWs').value.trim())})
+  .then(r=>r.json()).then(j=>{$('ttsSt').textContent=j.msg;ttsInfo()});};
+$('ttsSaveSpeed').onclick=()=>{
+ fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+  body:'speed='+encodeURIComponent($('ttsSpeed').value.trim())})
   .then(r=>r.json()).then(j=>{$('ttsSt').textContent=j.msg;ttsInfo()});};
 ttsInfo();
 function drop(el,url,ex){el.ondragover=e=>{e.preventDefault();el.classList.add('on')};el.ondragleave=()=>el.classList.remove('on');
@@ -185,6 +191,7 @@ static void apiTts() {
   s_srv->send(200, "application/json",
               String("{\"key\":") + (st.ttsKey.length() ? "true" : "false") + ",\"tail\":" + jsonStr(tail) +
                   ",\"voice\":" + jsonStr(st.ttsVoice) + ",\"vol\":" + String(st.ttsVolume) +
+                  ",\"speed\":" + String(st.ttsSpeed, 2) +
                   ",\"model\":" + jsonStr(st.ttsModel) + ",\"ws\":" + jsonStr(st.ttsWs) + "}");
 }
 
@@ -210,7 +217,7 @@ static void apiTtsSet() {
   if (s_srv->hasArg("model")) {
     String model = s_srv->arg("model");
     model.trim();
-    if (model == TTS_MODEL || model == TTS_MODEL_PLUS) {
+    if (model == TTS_MODEL_EDGE || model == TTS_MODEL_PLUS) {
       if (model != st.ttsModel) {  // 只在真的换了模型时才重置音色（音色名不能跨模型）
         st.ttsModel = model;
         st.ttsVoice = tts::defaultVoice(model);
@@ -221,6 +228,19 @@ static void apiTtsSet() {
     } else {
       ok = false;
       msg += "模型不对；";
+    }
+  }
+  if (s_srv->hasArg("speed")) {
+    String sp = s_srv->arg("speed");
+    sp.trim();
+    float v = sp.toFloat();
+    if (!sp.length() || v < TTS_SPEED_MIN - 0.001f || v > TTS_SPEED_MAX + 0.001f) {
+      ok = false;
+      msg += "语速要在 0.5～2 之间；";
+    } else {
+      st.ttsSpeed = v;
+      tts::setSpeed(v);
+      msg += "语速 " + String(v, 2) + " 倍；";
     }
   }
   if (s_srv->hasArg("ws")) {

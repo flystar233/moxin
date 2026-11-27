@@ -145,29 +145,41 @@
 #define BOOK_MAX_FILES      200
 #define CHAPTER_MAX         20000
 
-// ---------------- 语音朗读（阿里云百炼 qwen3-tts-flash） ----------------
+// ---------------- 语音朗读（Edge 朗读 / 阿里云 qwen-audio-3.1-tts-plus） ----------------
 // 按句请求：发一句文本，服务端流式返回 24kHz 16bit 单声道 PCM，收到就送 I2S 放出来；
 // 同时后台预合成后面一两句，句子之间听不出停顿。
-// API Key 在 系统设置 → Wi-Fi → 无线传输 的网页里填（存在 NVS），或者串口：tts key sk-...
-// 用新加坡地域的 Key 时把 TTS_API_URL 换成 https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation
-#define TTS_API_URL   "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
-#define TTS_MODEL     "qwen3-tts-flash"
-// 另一个可选模型：专业级、音质更好，1.44 元/万字符（北京），免费额度以控制台为准。
-// 它走另一套端点，地址里要带业务空间 ID（百炼控制台右上角图标里复制）：
+//
+// Edge 朗读：免费，直接连微软 Edge 浏览器的在线朗读接口（WebSocket，整个会话复用一条连接）。
+//   不需要 Key，但要求设备时间正确：令牌 Sec-MS-GEC 是按当前时间（5 分钟一档）
+//   算出来的 SHA-256，时钟差超过几分钟就会被拒。系统开机会自动联网对时。
+// plus：阿里云百炼的专业模型，音质更好，1.44 元/万字符。
+//   要 API Key（系统设置 → Wi-Fi → 无线传输 的网页里填，或串口 tts key sk-...）
+//   和业务空间 ID（百炼控制台右上角图标里复制，或串口 tts ws <ID>）。
+#define TTS_MODEL_EDGE         "edge"
+#define TTS_EDGE_HOST          "speech.platform.bing.com"
+#define TTS_EDGE_PATH          "/consumer/speech/synthesize/readaloud/edge/v1"
+#define TTS_EDGE_TRUSTED_TOKEN "6A5AA1D4EAFF4E9FB37E23D68491D6F4"
+#define TTS_EDGE_GEC_VERSION   "2-143.0.3650.75"
+#define TTS_EDGE_ORIGIN        "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold"
+#define TTS_EDGE_UA            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+#define TTS_EDGE_FORMAT        "audio-24khz-48kbitrate-mono-mp3"  // 服务端只支持 MP3/Opus，设备上用 helix 解成 PCM
+#define TTS_VOICE_EDGE         "zh-CN-YunyangNeural"       // 默认音色：云扬（男，播音）
+// 另一个可选模型：专业级、音质更好（北京），免费额度以控制台为准。
+// 它走另一套端点，地址里要带业务空间 ID：
 //   https://<业务空间ID>.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer
 #define TTS_MODEL_PLUS        "qwen-audio-3.1-tts-plus"
 #define TTS_PLUS_HOST_SUFFIX  ".cn-beijing.maas.aliyuncs.com"
 #define TTS_PLUS_PATH         "/api/v1/services/audio/tts/SpeechSynthesizer"
 #define TTS_VOICE_PLUS        "longanhuan_v3.1"
-// 参考价（元/万字符，仅用于串口/设置里估算花费）
-#define TTS_PRICE_FLASH       0.8f
+// 参考价（元/万字符，仅用于串口/设置里估算花费）；Edge 朗读免费
 #define TTS_PRICE_PLUS        1.44f
-#define TTS_LANGUAGE  "Chinese"     // 文本语种（中文小说）。改 "Auto" 也行，指定语种发音更准
-#define TTS_VOICE     "Cherry"      // flash 默认音色（设置里可以换）
-#define TTS_RATE      24000         // 流式 PCM 采样率（模型固定 24k）
-#define TTS_MAX_CHARS 120           // 一次合成最多多少字（模型单次上限 512 token，120 个汉字很安全）
+#define TTS_RATE      24000         // 流式 PCM 采样率（两个模型都按 24k 要）
+#define TTS_MAX_CHARS 48            // 一次合成最多多少字（短句才能多句预读，句子之间才不卡）
 #define TTS_MIN_CHARS 2             // 一句至少多少字，再短就接到下一行
-#define TTS_RING_KB   320           // 预读缓冲（PSRAM），分不到会往下降
+#define TTS_RING_KB   640           // 预读缓冲（PSRAM，约 13 秒，能装两三句），分不到会往下降
 #define TTS_VOL_DEFAULT 70          // 默认音量 %
+#define TTS_SPEED_DEFAULT 1.0f      // 默认语速（1.0 = 原速）
+#define TTS_SPEED_MIN 0.5f          // 最慢 0.5 倍
+#define TTS_SPEED_MAX 2.0f          // 最快 2 倍
 #define TTS_PAUSE_STOP_MS (5 * 60 * 1000)  // 暂停这么久自动结束（关 Wi-Fi 省电）
 

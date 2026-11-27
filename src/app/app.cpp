@@ -236,17 +236,25 @@ void refreshSensors(bool force) {
 // ---------------------------------------------------------------------
 // 姿态
 // ---------------------------------------------------------------------
+// 朗读中翻到横放先记下来，等不念了再按这个姿态处理（不然会一直卡在竖屏阅读界面）
+static uint8_t s_pendingPose = POSE_UNKNOWN;
+
 static void onPose(uint8_t p) {
   if (p == POSE_UNKNOWN) return;
   View *t = top();
   if (t && !t->acceptsPose()) return;
   uint8_t oldRot = rotation();
   if (poseIsReading(p)) {
+    s_pendingPose = POSE_UNKNOWN;
     s_pose = p;
     if (!rootIsReader()) { setRoot(newReaderView()); return; }
   } else {
+    // 朗读中翻转设备不切桌面、也不停朗读：想换个姿势接着听
+    if (tts::active()) {
+      s_pendingPose = p;
+      return;
+    }
     if (rootIsReader() && !settings().autoDesk) return;  // 躺着看书：设置里关了自动切桌面
-    if (tts::active()) tts::stop();  // 切到桌面就不念了
     s_pose = p;
     if (rootIsReader()) { setRoot(newDeskView()); return; }
   }
@@ -423,6 +431,9 @@ static void maybeSleep() {
   if (net::busy()) return;  // Wi-Fi 在用（配网、传输、后台对时）：睡了就断了
   if (s_dirty != Refresh::None || uxQueueMessagesWaiting(g_events) || !keysAllReleased() || s_co2Pending) return;
 
+  // 朗读中不能睡：浅睡会停 Wi-Fi 和 CPU，正在播的声音会断断续续；深睡更不用说
+  if (tts::active()) return;
+
   // 定时醒来更新完就继续深睡；正常运行时从最后一次操作开始算，不把刷屏算进去。
   uint32_t deepMs = (uint32_t)settings().deepSleepMin * 60000UL;
   bool deep = r_res.regime || (deepMs && now - s_lastAct >= deepMs);
@@ -543,6 +554,12 @@ void loop() {
     case tts::EV_ERROR: toast("朗读出错", ttsMsg, 4000); break;
     case tts::EV_DONE: toast("朗读结束", ttsMsg, 1500); break;
     default: break;
+  }
+  // 朗读时翻到横放被记下来了：等不念了再切桌面（不然设备是横的、界面还是竖的）
+  if (!tts::active() && s_pendingPose != POSE_UNKNOWN) {
+    uint8_t pp = s_pendingPose;
+    s_pendingPose = POSE_UNKNOWN;
+    onPose(pp);
   }
   if (View *t = top()) t->onTick();
   refreshSensors(false);

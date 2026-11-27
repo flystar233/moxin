@@ -13,12 +13,13 @@ struct Settings {
   float tapThr;           // 敲击门限（g）
   // 屏
   uint8_t pfBlack, pfWhite;  // 局刷波形
-  // 朗读（qwen3-tts-flash / qwen-audio-3.1-tts-plus）
+  // 朗读（Edge 朗读 / qwen-audio-3.1-tts-plus）
   String ttsModel;        // 模型 ID
   String ttsWs;           // 业务空间 ID（plus 模型用；百炼控制台右上角复制）
-  String ttsKey;          // 百炼 API Key（无线传输网页或串口 tts key 设置）
-  String ttsVoice;        // 音色：Cherry / Serena / ... 或 longanhuan_v3.1 / ...
+  String ttsKey;          // 百炼 API Key（只有 plus 用；无线传输网页或串口 tts key 设置）
+  String ttsVoice;        // 音色：zh-CN-YunyangNeural / longanhuan_v3.1 / ...
   uint8_t ttsVolume;      // 音量 %
+  float ttsSpeed;         // 语速倍率（0.5～2.0）
   bool ttsAutoPage;       // 朗读时自动翻页跟着
   // 系统
   bool autoDesk;          // 横放时自动切到桌面模式（躺着看书时可以关掉）

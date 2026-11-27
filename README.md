@@ -98,22 +98,24 @@ SSD1677 的局刷用控制器自带的比较功能：0x24 写新帧，0x26 写�
 
 ## 语音朗读（`src/voice/`）
 
-对接阿里云百炼，一句一次 HTTP 请求，边收边播。
+两个模型：**Edge 朗读**（免费，微软 Edge 的在线朗读接口）和 **qwen-audio-3.1-tts-plus**（阿里云百炼，要 Key，音质更好）。都是一句一次请求，边收边播。
 
 ```
 主线程 tts::tick()     按句切分 → 排队 → 跟随播放位置自动翻页
-合成任务              逐句请求 → 解析 PCM → 写入环形缓冲
+合成任务              逐句请求 → 解出 PCM → 写入环形缓冲
 播放任务              从环形缓冲取数据 → I2S（24kHz、16bit、单声道）
 ```
 
 - `sentence.cpp`：按 `。！？…；` 切句，引号算在句末。没有标点的诗在换行处切，太长的句子在逗号处断
-- `tts_client.cpp`：flash 模型走多模态生成接口，返回 WAV；plus 模型走 `SpeechSynthesizer`，直接要 PCM。两者都开 `X-DashScope-SSE` 流式返回
-- `sse_pcm.cpp`：在字节流里增量查找 base64 的音频数据，剥掉 WAV 头。查找不依赖块边界，数据跨块也能找到
+- `tts_client.cpp`：Edge 走 WebSocket（`speech.platform.bing.com`），一句一个连接；plus 走 `SpeechSynthesizer`，HTTP 流式返回 PCM
+- `edge_drm.cpp`：算 Edge 的 `Sec-MS-GEC` v2 令牌（CS64 + 改过初始状态的 SHA-256，按 5 分钟一档），设备时钟必须准
+- Edge 只输出 MP3/Opus，所以 `tts_client.cpp` 里用 libhelix 把 MP3 解成 PCM（`DevLab_LibHelix`）
+- `sse_pcm.cpp`：plus 的 SSE 字节流里增量查找 base64 音频，剥掉 WAV 头。查找不依赖块边界，数据跨块也能找到
 - 流里每句 PCM 的字节区间都会记下来，所以暂停时“正在读哪句”也是准的
 
-环形缓冲能存约 3～7 秒音频，后面的一两句在后台提前合成。朗读期间 Wi-Fi 常开，CPU 提到 240MHz（TLS 和 base64 解码要用），读完回落。
+环形缓冲能存约 3～7 秒音频，后面的一两句在后台提前合成。朗读期间 Wi-Fi 常开，CPU 提到 240MHz（TLS 和 MP3 解码要用），读完回落。
 
-需要百炼账号和 API Key，填一次存在 NVS 里。没有 Key 时只有朗读不可用。
+Edge 朗读不需要 Key，但要求设备时间正确（开机自动联网对时）。plus 需要百炼账号、API Key 和业务空间 ID，填一次存在 NVS 里；没有这些也不影响 Edge。
 
 ## 加速度计（`src/input/motion.cpp`）
 
