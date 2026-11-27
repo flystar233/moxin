@@ -13,6 +13,7 @@
 #include "text/font.h"
 #include "views.h"
 #include "voice/tts.h"
+#include "widgets.h"
 
 static String onOff(bool b) { return b ? "开" : "关"; }
 static String pct(int permille) {
@@ -450,29 +451,112 @@ class SystemSettings : public MenuView {
 View *newSystemSettings() { return new SystemSettings(); }
 
 // =====================================================================
-// 书库
+// 书库：封面网格，封面正中写书名
 // =====================================================================
-class LibraryView : public ListView {
+class LibraryView : public View {
  public:
-  LibraryView() : ListView("书库") {
+  LibraryView() {
     cardOk_ = libraryScan();
-    if (!cardOk_) title_ = "书库（没有 TF 卡）";
     const auto &b = libraryBooks();
     for (size_t i = 0; i < b.size(); i++)
-      if (bookIsOpen() && b[i].path == bookPath()) cursor_ = i;
+      if (bookIsOpen() && b[i].path == bookPath()) cursor_ = (int)i;
   }
   const char *name() const override { return "library"; }
 
- protected:
-  String titleRight() const override { return String(libraryBooks().size()) + " 本"; }
-  int count() const override { return libraryBooks().size(); }
-  void row(int i, ListRow &r) const override {
-    const BookEntry &b = libraryBooks()[i];
-    r.label = b.title;
-    r.marked = bookIsOpen() && b.path == bookPath();
-    r.value = b.permille < 0 ? String("新") : b.permille >= 1000 ? String("读完") : pct(b.permille);
+  void draw() override {
+    const auto &books = libraryBooks();
+    const int n = (int)books.size();
+    const int per = perPage();
+    const int pages = n ? (n + per - 1) / per : 1;
+    const int page = n ? cursor_ / per : 0;
+    String right = pages > 1 ? String(page + 1) + "/" + String(pages) : (cardOk_ ? String(n) + " 本" : String("无卡"));
+    ui::frame("书库", "翻页键选择　菜单键打开　长按返回", right);
+
+    const int top = ui::bodyTop();
+    if (!n) {
+      gfx::textCenter(gfx::W() / 2, top + gfx::lineH(Font::Ui) * 2, "（空）");
+      const String hint = cardOk_ ? String("把 TXT / EPUB 放到 TF 卡 /books") : String("没找到 TF 卡");
+      gfx::textCenter(gfx::W() / 2, top + gfx::lineH(Font::Ui) * 4, hint, Font::Small);
+      return;
+    }
+
+    const int cw = cellW(), ch = cellH(), g = gap(), M = ui::margin();
+    const int cols = this->cols();
+    const int pd = ui::pad();
+    const int lh = gfx::lineH(Font::Small);
+    const int asc = gfx::ascent(Font::Small);
+
+    for (int i = page * per; i < n && i < (page + 1) * per; i++) {
+      const int k = i - page * per;
+      const int x = M + (k % cols) * (cw + g);
+      const int y = top + (k / cols) * (ch + g);
+      const bool sel = (i == cursor_);
+      const uint16_t fg = sel ? EPD_WHITE : EPD_BLACK;
+      if (sel) {
+        gfx::d().fillRect(x, y, cw, ch, EPD_BLACK);
+      } else {
+        gfx::d().drawRect(x, y, cw, ch, EPD_BLACK);
+      }
+
+      // 书脊：左边竖线
+      const int spine = x + gfx::px(9);
+      gfx::d().drawLine(spine, y + pd, spine, y + ch - pd, fg);
+
+      // 书名：封面中间折几行
+      const int titleX = spine + gfx::px(8);
+      const int titleW = x + cw - pd - titleX;
+      int maxLines = (ch - 2 * pd - lh) / lh;
+      if (maxLines < 1) maxLines = 1;
+      if (maxLines > 4) maxLines = 4;
+      auto lines = ui::wrap(books[i].title, Font::Small, titleW, maxLines, true);
+      const int blockH = (int)lines.size() * lh;
+      int baseline = y + (ch - blockH) / 2 + asc;
+      for (const String &line : lines) {
+        gfx::text(titleX, baseline, line, Font::Small, fg);
+        baseline += lh;
+      }
+
+      // 底下小字：在读 / 进度 / 新
+      String suffix = books[i].permille < 0 ? String("新")
+                      : books[i].permille >= 1000 ? String("读完")
+                                                  : pct(books[i].permille);
+      String meta = (bookIsOpen() && books[i].path == bookPath()) ? String("在读 · ") + suffix : suffix;
+      gfx::textCenter(x + cw / 2, y + ch - pd, meta, Font::Small, fg);
+    }
   }
-  void select(int i) override {
+
+  void onKey(Key k, Press p) override {
+    const int n = (int)libraryBooks().size();
+    if (k == Key::Menu) {
+      if (p == Press::Short && n > 0) openAt(cursor_);
+      else if (p == Press::Long) app::pop();
+      return;
+    }
+    int d = 0;
+    if (k == Key::Next) d = (p == Press::Long) ? perPage() : 1;
+    else if (k == Key::Prev) d = (p == Press::Long) ? -perPage() : -1;
+    else return;
+    if (n <= 0) return;
+    int c = constrain(cursor_ + d, 0, n - 1);
+    if (c != cursor_) {
+      cursor_ = c;
+      app::invalidate(Refresh::Partial);
+    }
+  }
+
+ private:
+  int cols() const { return gfx::W() > gfx::H() ? 6 : 3; }
+  int gap() const { return gfx::px(12); }
+  int cellW() const { return (gfx::W() - 2 * ui::margin() - (cols() - 1) * gap()) / cols(); }
+  int cellH() const { return cellW() * 14 / 10; }
+  int rows() const {
+    const int avail = ui::bodyBottom() - ui::bodyTop();
+    int r = (avail + gap()) / (cellH() + gap());
+    return r < 1 ? 1 : r;
+  }
+  int perPage() const { return cols() * rows(); }
+
+  void openAt(int i) {
     BookEntry b = libraryBooks()[i];
     if (!(bookIsOpen() && b.path == bookPath())) {
       app::busy("正在打开…");
@@ -484,8 +568,8 @@ class LibraryView : public ListView {
     app::enterReading();
   }
 
- private:
-  bool cardOk_;
+  int cursor_ = 0;
+  bool cardOk_ = false;
 };
 View *newLibraryView() { return new LibraryView(); }
 
