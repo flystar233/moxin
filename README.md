@@ -107,7 +107,7 @@ SSD1677 的局刷用控制器自带的比较功能：0x24 写新帧，0x26 写�
 ```
 
 - `sentence.cpp`：按 `。！？…；` 切句，引号算在句末。没有标点的诗在换行处切，太长的句子在逗号处断
-- `tts_client.cpp`：Edge 走 WebSocket（`speech.platform.bing.com`），一句一个连接；plus 走 `SpeechSynthesizer`，HTTP 流式返回 PCM
+- `tts_client.cpp`：Edge 走 WebSocket（`speech.platform.bing.com`），整个朗读会话复用一条连接；plus 走 `SpeechSynthesizer`，HTTP 流式返回 PCM
 - `edge_drm.cpp`：算 Edge 的 `Sec-MS-GEC` v2 令牌（CS64 + 改过初始状态的 SHA-256，按 5 分钟一档），设备时钟必须准
 - Edge 只输出 MP3/Opus，所以 `tts_client.cpp` 里用 libhelix 把 MP3 解成 PCM（`DevLab_LibHelix`）
 - `sse_pcm.cpp`：plus 的 SSE 字节流里增量查找 base64 音频，剥掉 WAV 头。查找不依赖块边界，数据跨块也能找到
@@ -144,7 +144,17 @@ Wi-Fi 使用期间 `net::busy()` 返回 true，主循环据此禁止进入睡眠
 
 新固件第一次启动时处于**试运行**状态，30 秒后或者关机、深睡前会自动调用 `ota::confirm()` 确认。确认之前如果重启过（崩溃、按 RESET、断电），bootloader 就回退到原分区。所以升级后 30 秒内不要按 RESET。
 
-串口升级由 `xfer.cpp` 实现：按 4096 字节分块传，每块回执，最后整体校验 CRC32。电脑端是 `tools/fwupdate.py`。
+串口升级由 `xfer.cpp` 实现：按 16384 字节分块传，每块回执，最后整体校验 CRC32。电脑端是 `tools/fwupdate.py`。
+
+## 传书
+
+两条路，都不用读卡器：
+
+- **USB（不用 Wi-Fi）**：`python tools/usbput.py`，浏览器打开 `http://127.0.0.1:8765/`，把 TXT / EPUB 拖进去。本机的小服务走 USB 串口，按 `fput` 协议写卡（16KB 一块、每块回执、整文件 CRC32），和设备自带的无线传输是同一套底层协议。设备插着 USB、跑着本固件就能用。
+- **Wi-Fi**：设备上进 系统设置 → Wi-Fi → 无线传输，屏幕会显示网址和二维码；浏览器里能传书、传字库、传固件，也能改朗读设置。
+- 命令行版是 `tools/tfcard.py`（`put / ls / rm / df`），适合批量或写脚本。
+
+只收 `.txt`、`.epub`（字库是 `.efnt`），中文文件名可以；USB 传的时候别拔线，设备要是浅睡了工具会自动重试。
 
 ## TF 卡
 
@@ -175,7 +185,7 @@ src/
   core/         设置（NVS）、文件传输、OTA
 data/           嵌入固件的字库
 art/            关机画面原图
-tools/          字库、传文件、截图、发版、测试脚本
+tools/          字库、传文件（USB 网页 / 命令行）、截图、发版、测试脚本
 ```
 
 `src/reader/`、`src/voice/sentence.cpp` 和 `src/voice/sse_pcm.cpp` 是纯 C++，不依赖 Arduino，可以直接在电脑上编译测试：
