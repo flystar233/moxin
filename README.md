@@ -1,6 +1,20 @@
 # 墨水屏阅读器固件（PCB1，ESP32-S3）
 
-v0.3.0 · 2026-11-23 · 屏：4.26 寸 GDEY0426T82（SSD1677，800×480，219 PPI）。4.2 寸 SSD1619A 测试屏的驱动还在，见文末。
+v0.3.0 · 2026-11-23
+
+## 硬件概览
+
+| 项 | 说明 |
+|---|---|
+| 主控 | ESP32-S3-WROOM-1-N16R8（16MB flash，8MB PSRAM） |
+| 屏幕 | 4.26 寸 GDEY0426T82，SSD1677，800×480，219 PPI |
+| 外设 | SC7A20H 加速度计、PCF8563 RTC、CW2015 电量计、STCC4 CO₂（温湿度取自其后的 SHT40）、NS4168 功放、TF 卡 |
+| 供电 | 电池 + USB；关机后由 GPIO4（PWR_HOLD）保持 |
+| 按键 | 电源、菜单、上一页 / 下一页（翘板） |
+
+引脚、地址、时序都在 [`src/config.h`](src/config.h)。板级细节、外壳和设计资料不放在这个仓库里。
+
+4.2 寸 SSD1619A 测试屏的驱动还留着，把 `config.h` 的 `EPD_MODEL` 改回 `EPD_MODEL_SSD1619A_420` 就能换用。
 
 ## 功能
 
@@ -35,6 +49,8 @@ v0.3.0 · 2026-11-23 · 屏：4.26 寸 GDEY0426T82（SSD1677，800×480，219 PP
 | 电源键 | 全屏刷新一次（清残影） | 3 秒：开机 / 关机 |
 
 双击后背也能翻到下一页（设置里可以关）。朗读时双击后背是暂停 / 继续。
+
+> 翻页翘板正中按下去会同时触发两个键，固件里会忽略，属正常现象；按两端即可。
 
 ## 菜单
 
@@ -116,6 +132,7 @@ tts model                 # 看当前模型和价格
 - 只支持 2.4GHz Wi-Fi。信号弱、网络慢的时候，句子之间会有停顿（预读缓冲垫不住的时候）。
 - 暂停后 5 分钟自动停止并关 Wi-Fi，免得忘了还连着网耗电。
 - 用电池朗读很费电：Wi-Fi 一直连着、CPU 240MHz、功放也在响。要听一路，最好插着 USB 或充满电。
+- 需要自己的百炼账号和 API Key；没有 Key 时朗读不可用，其他功能不受影响。
 
 先在电脑上确认 Key 和返回格式对不对（不用烧固件）：
 
@@ -126,6 +143,8 @@ python tools/tts_probe.py sk-xxxxxxxx
 它打印首段延迟、收到多少字节、采样率 / 声道 / 位深、估计时长，并把长度正确的 WAV 存成 `tts_probe.wav`，电脑上直接能听。
 
 ## TF 卡上的文件
+
+TF 卡用 FAT32 格式。
 
 ```
 /books/*.txt *.epub  书，也可以放在子文件夹里（/books/作者/书名.epub，最多两层）。根目录下的也认。
@@ -156,47 +175,51 @@ python tools/makefont.py LXGWWenKaiGBScreen.ttf --sizes 14 16 18 20 --name wenka
 
 `--thr` 调 `ss` / `aa` 的粗细，数字越小越粗。需要 `pillow`、`fonttools`。
 
-`ss` 默认阈值 135（11-13 由 150 改）。对 GB2312 一级 3755 字逐字比较“1 位点阵的连通块数”和“8 倍参考渲染的连通块数”，多出来的就是断笔：
+`ss` 默认阈值 135。对 GB2312 一级 3755 字逐字比较"1 位点阵的连通块数"和"8 倍参考渲染的连通块数"，多出来的就是断笔：
 
 | 字体 | 22px 断笔 | 24px 断笔 | 说明 |
 |---|---|---|---|
 | 霞鹜文楷 Screen，阈值 150 | 66 | 16 | 钩、点和主笔断开一个像素 |
-| **霞鹜文楷 Screen，阈值 135** | **7** | **1** | 现在卡上的 `wenkai_*`，笔画粗约 8% |
+| **霞鹜文楷 Screen，阈值 135** | **7** | **1** | 卡上的 `wenkai_*`，笔画粗约 8% |
 | 霞鹜新晰黑，阈值 135 | 5 | 3 | 卡上的 `xinhei_*`，黑体备选 |
 | 霞鹜文楷 Regular（非 Screen） | 737 | 380 | 笔画太细，别用 |
 | 思源宋体 SemiBold | 2122 | 2033 | 横笔太细直接消失，宋体都不适合这块 219PPI 纯黑白屏 |
 
-文楷用 `LXGWWenKaiGBScreen.ttf`，新晰黑用 `LXGWNeoXiHei.ttf`（`--name xinhei`，菜单里显示“霞鹜新晰黑”）。
+文楷用 `LXGWWenKaiGBScreen.ttf`，新晰黑用 `LXGWNeoXiHei.ttf`（`--name xinhei`，菜单里显示"霞鹜新晰黑"）。
 
 字体名会显示在菜单里：`wenkai` 显示为"霞鹜文楷"。其他名字的对照表在 `src/text/font.cpp` 的 `fontFamilyLabel()`。
 
 ## 编译、烧录、调试
 
-**平时用串口升级**（板子开着、跑着本固件就行，不用按电源键）：
+环境：PlatformIO（`platform` = espressif32@6.10.0，Arduino 框架）。所有命令都在**仓库根目录**运行。
 
 ```
-pio run -e pcb1_serial -t upload --upload-port COM6
+pio run                                   # 编译
+pio run -e pcb1 -t upload --upload-port COM6     # 整片烧录
+pio run -e pcb1_serial -t upload --upload-port COM6   # 串口升级（板子在跑本固件时）
+pio device monitor -b 115200              # 串口
 ```
 
-固件经 USB 串口发给正在运行的程序，写进另一个程序区（16MB flash 分了 app0 / app1 两个），SHA256 校验通过才切换启动分区，然后软件重启。软件重启不会放掉 GPIO4（PWR_HOLD）的保持，所以不断电。中途断了、校验不过，还是从原来的程序区启动，不会变砖。2MB 固件约 15 秒。也可以直接 `python tools/fwupdate.py [firmware.bin]`。
+仓库根目录也放了同一次编译出的 `bootloader.bin`（`0x0`）、`partitions.bin`（`0x8000`）、`firmware.bin`（`0x10000`），
+空板可以用 Flash Download Tool 或 `esptool.py write_flash` 一次写入。
+
+> **硬件注意**：普通烧录时烧录器会先硬复位芯片，复位瞬间 GPIO4（PWR_HOLD）放开会断电，所以要一直按住电源键，
+> 或者在 R33 上点锡短接。空板第一次烧录前需要焊 R33（0Ω）；确认开关机正常后可以去掉。
+> 板子已经在跑本固件时用串口升级，不需要碰 R33 和电源键。
+
+**串口升级**：固件经 USB 串口发给正在运行的程序，写进另一个程序区（16MB flash 分了 app0 / app1 两个），SHA256 校验通过才切换启动分区，然后软件重启。软件重启不会放掉 GPIO4（PWR_HOLD）的保持，所以不断电。中途断了、校验不过，还是从原来的程序区启动，不会变砖。2MB 固件约 15 秒。也可以直接 `python tools/fwupdate.py [firmware.bin]`。
 
 **升级后先试运行**（串口、网页、联网三种升级都一样）：新固件第一次启动时处于试运行状态，满 30 秒、或者关机 / 深睡 / 开始下一次升级之前自动确认。确认之前只要重启过（崩溃、按 RESET、断电），bootloader 就退回原来的固件。所以升级完 30 秒内别按 RESET。`info` 第一行会显示"试运行中"或"上次升级已退回"。代码在 `src/core/ota.cpp`。
 
 **联网升级**（设备上点"系统设置 → 检查新版本"才联网查，不定时查、不自动装）：
 
-1. 把 `src/config.h` 的 `OTA_URL` 改成你服务器上 version.json 的网址（必须是 HTTPS，证书由固件里自带的根证书包校验）
+1. 把 `src/config.h` 的 `OTA_URL` 改成你自己服务器上 version.json 的网址（必须是 HTTPS，证书由固件里自带的根证书包校验）。**当前默认地址是作者的服务器，自行发布时务必替换。**
 2. 发版：改 `FW_VERSION` → `pio run` → `python tools/release.py --notes "更新说明"`，生成 `dist/firmware-<版本>.bin` 和 `dist/version.json`（`dist/` 不提交，见 `.gitignore`）
 3. 两个文件传到 `OTA_URL` 所在的目录，**先传 bin、后传 version.json**
 
 设备查到比本机新的版本，会显示版本号和更新说明，按菜单键确定才下载安装；用电池时电量要 30% 以上。下载完校验通过才切换，然后重启进新固件试运行。
 
-**普通烧录**（板子里的固件跑不起来时）：
-
-```
-pio run -e pcb1 -t upload --upload-port COM6
-```
-
-烧录时要一直按住电源键（或者 R33 点锡），直到烧完：烧录器会先硬复位芯片，复位那一下 GPIO4 放开、PWR_HOLD 掉了就断电，跟板子里原来是什么固件无关。
+### 串口命令
 
 串口 115200，输入 `help` 看全部命令。常用的：
 
@@ -212,7 +235,8 @@ pio run -e pcb1 -t upload --upload-port COM6
 | `pf 20 10` | 局刷波形（变黑帧数、变白额外帧数） |
 | `deep 15` | 马上深睡，15 秒后醒（测试唤醒流程） |
 | `time 2026-11-10 21:30:00` | 对时 |
-| `beep 1000 500 30`、`scale`、`sweep` | 测喇叭：单音（Hz、毫秒、音量 %）/ 音阶 / 扫频 100～8000Hz。功放 U9 NS4168，I2S 16kHz，代码在 `board/audio.cpp`；插 USB 时音量最多按 70% 放 |
+| `offshot` / `full` | 只画关机画面 / 全屏刷新回来 |
+| `beep 1000 500 30`、`scale`、`sweep` | 测喇叭：单音（Hz、毫秒、音量 %）/ 音阶 / 扫频 100～8000Hz |
 | `tts` | 朗读状态（模型、音色、音量、Key、业务空间 ID、本次合成字数和估算花费） |
 | `tts key sk-...`、`tts key clear` | 保存 / 清除语音服务的 API Key |
 | `tts model flash\|plus`、`tts model` | 切换模型 / 看当前模型和价格 |
@@ -220,6 +244,7 @@ pio run -e pcb1 -t upload --upload-port COM6
 | `tts play`、`tts stop`、`tts next`、`tts prev` | 从当前页开始念 / 停止 / 下一句 / 上一句 |
 | `tts say 一段文字` | 直接合成一段试听（不跟书、不翻页） |
 | `tts voice Cherry`、`tts vol 70` | 换音色 / 调音量（不带参数时列出当前模型的音色） |
+| `wifi`、`xfer` | 打开配网界面 / 打开无线传输 |
 
 ## Wi-Fi
 
@@ -231,7 +256,7 @@ pio run -e pcb1 -t upload --upload-port COM6
 - **每天自动对时**：每天第一次有机会时在后台联网对时（阿里云 NTP，北京时间），不卡界面；失败了同一小时不再试；电池低于 3.5V 不联网。
 - **现在联网对时**、**忘记这个 Wi-Fi**。
 
-串口：`wifi` 打开配网界面，`xfer` 打开无线传输。代码在 `src/net/`（wifi.cpp：账号、配网、对时；transfer.cpp：传输网页）。
+代码在 `src/net/`（wifi.cpp：账号、配网、对时；transfer.cpp：传输网页）。
 
 ## 关机画面
 
@@ -243,14 +268,14 @@ python tools/art_from_image.py art/shutdown.jpg 预览目录
 ```
 
 它把纸色和纸纹映射成纯白、墨色抖动成黑白点，生成 `src/ui/art_shutdown.h`（横屏整幅，竖屏从右半边裁一条），再编译烧录。
-写字的位置在脚本开头的 `LAND_TEXT` / `PORT_TEXT`，要和画上的空白对上。串口 `offshot` 只画关机画面不关机，方便看效果（`full` 刷回来）。
+写字的位置在脚本开头的 `LAND_TEXT` / `PORT_TEXT`，要和画上的空白对上。
 
-## 在电脑上测阅读器
+## 在电脑上测
 
-导入（`import.cpp`：TXT 转码、EPUB 解析）、认章节（`chapters.cpp`）、排版分页（`layout.cpp`）、阅读窗口（`window.cpp`）都是纯 C++，不依赖 Arduino，可以在电脑上用真实的书测（MSYS2 ucrt64 的 g++，解压用 zlib）：
+阅读器的导入（`import.cpp`：TXT 转码、EPUB 解析）、认章节（`chapters.cpp`）、排版分页（`layout.cpp`）、阅读窗口（`window.cpp`）都是纯 C++，不依赖 Arduino，可以在电脑上用真实的书测（MSYS2 ucrt64 的 g++，解压用 zlib）：
 
 ```
-g++ -O2 -std=c++17 -Isrc -Itools/readertest tools/readertest/main.cpp src/reader/import.cpp src/reader/chapters.cpp     src/reader/layout.cpp src/reader/window.cpp src/reader/epub.cpp src/text/decode.cpp -lz -o readertest
+g++ -O2 -std=c++17 -Isrc -Itools/readertest tools/readertest/main.cpp src/reader/import.cpp src/reader/chapters.cpp src/reader/layout.cpp src/reader/window.cpp src/reader/epub.cpp src/text/decode.cpp -lz -o readertest
 readertest 书.txt|书.epub [输出前缀]
 ```
 
@@ -282,11 +307,12 @@ src/
   ui/           画图（gfx）、列表菜单、各个界面
   app/          界面栈、按键分发、姿态切换、刷新策略、省电、串口命令
   core/         设置（存在 NVS）、串口传文件
-tools/          makefont.py、tfcard.py、shot.py、gen_gbk.py；readertest/ 在电脑上测导入、分页、阅读窗口；
-                ttstest/ 在电脑上测按句切分、SSE/base64/WAV 解析；tts_probe.py 在电脑上试语音 API
+data/           嵌入固件的点阵字库和 FONTS.md
+art/            关机画面原图
+tools/          makefont.py、tfcard.py、shot.py、gen_gbk.py、fwupdate.py、release.py、art_from_image.py；
+                readertest/ 在电脑上测导入、分页、阅读窗口；ttstest/ 测按句切分、SSE/WAV 解析；
+                tts_probe.py 在电脑上试语音 API
 ```
-
-所有命令都在仓库根目录运行：`pio run`、`python tools/...`、`-Isrc` 都按根目录算。
 
 界面是一个栈：最底下是根界面（桌面或阅读），上面叠菜单、目录、提示框。每个界面只做两件事：`draw()` 画自己，`onKey()` 处理按键；要重画就调 `app::invalidate()`。什么时候全刷、什么时候局刷、什么时候睡，都在 `src/app/app.cpp` 里统一决定：
 
@@ -296,7 +322,7 @@ tools/          makefont.py、tfcard.py、shot.py、gen_gbk.py；readertest/ 在
 
 深睡醒来后内存里的东西都没了，屏上还是睡前的画面。所以睡前把"最后一帧用的是什么状态"存在 RTC 内存里，醒来按它重画一遍，当作局刷的基准，之后照常局刷，不用闪一次全刷。
 
-## 屏幕
+## 屏幕驱动
 
 `config.h` 的 `EPD_MODEL` 选驱动：
 
