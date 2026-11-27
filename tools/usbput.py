@@ -12,6 +12,7 @@ USB 串口按固件的 fput 协议写进 TF 卡，和 tools/tfcard.py 用的是�
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -317,120 +318,9 @@ def worker(tid, local, remote):
 
 
 def page_html():
-    return """<!doctype html><html lang="zh"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>墨芯 · USB 传书</title>
-<style>
-:root{--fg:#1b1b1b;--muted:#6b6b6b;--line:#ddd;--accent:#2f6f4f;--bg:#faf9f6}
-*{box-sizing:border-box}
-body{margin:0;font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--fg);background:var(--bg)}
-header{display:flex;align-items:baseline;gap:14px;padding:22px 28px 14px;border-bottom:1px solid var(--line)}
-h1{font-size:19px;margin:0;letter-spacing:.5px}
-#info{color:var(--muted);font-size:13px;margin-left:auto;text-align:right}
-main{max-width:820px;margin:0 auto;padding:22px 20px 60px}
-.drop{border:2px dashed #c9c4ba;border-radius:14px;padding:34px 20px;text-align:center;background:#fff;transition:.15s}
-.drop.on{border-color:var(--accent);background:#f2f8f4}
-.drop p{margin:6px 0}
-.sub{color:var(--muted);font-size:13px}
-.btn{display:inline-block;padding:7px 14px;border:1px solid var(--accent);color:var(--accent);border-radius:9px;cursor:pointer;background:#fff}
-h2{font-size:14px;color:var(--muted);font-weight:600;margin:28px 0 8px;display:flex;align-items:center;gap:10px}
-ul{list-style:none;margin:0;padding:0}
-li{display:flex;align-items:center;gap:12px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
-li .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-li .s{color:var(--muted);font-size:12px;white-space:nowrap}
-.bar{height:6px;background:#eee;border-radius:3px;overflow:hidden;width:150px}
-.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
-.ok{color:var(--accent)} .bad{color:#b03a2e}
-button.del{border:1px solid var(--line);background:#fff;border-radius:7px;padding:3px 9px;cursor:pointer;color:var(--muted)}
-button.del:hover{color:#b03a2e;border-color:#e5b4ae}
-#refresh{border:1px solid var(--line);background:#fff;border-radius:8px;padding:3px 10px;cursor:pointer;color:var(--muted);font-size:12px}
-</style>
-<header><h1>墨芯 · USB 传书</h1><span id="info">正在读取设备…</span></header>
-<main>
-  <div class="drop" id="drop">
-    <p><b>把 TXT / EPUB 拖到这里</b></p>
-    <p class="sub">或者 <label class="btn">选择文件<input id="file" type="file" multiple accept=".txt,.epub" hidden></label></p>
-    <p class="sub">走 USB 串口直接写进 TF 卡，不用 Wi-Fi。传的时候别拔线。</p>
-  </div>
-  <h2>队列</h2>
-  <ul id="queue"><li class="sub" style="border:none;background:none;padding-left:0">还没有文件</li></ul>
-  <h2>设备上的书 <button id="refresh">刷新</button></h2>
-  <ul id="books"><li class="sub" style="border:none;background:none;padding-left:0">…</li></ul>
-</main>
-<script>
-const $ = id => document.getElementById(id);
-const fmt = b => b >= 1048576 ? (b/1048576).toFixed(1)+' MB' : Math.max(1, Math.round(b/1024))+' KB';
-
-async function info(){
-  try{
-    const j = await (await fetch('/api/info')).json();
-    $('info').textContent = '串口 ' + (j.port || '未连接') + (j.df ? ' · ' + j.df : '') + (j.busy ? ' · 设备忙' : '');
-  }catch(e){ $('info').textContent = '设备没连上：' + e; }
-}
-async function books(){
-  const ul = $('books'); ul.innerHTML = '<li class="sub" style="border:none;background:none;padding-left:0">…</li>';
-  try{
-    const j = await (await fetch('/api/books')).json();
-    if(!j.items.length){ ul.innerHTML = '<li class="sub" style="border:none;background:none;padding-left:0">（空）</li>'; return; }
-    ul.innerHTML = '';
-    for(const it of j.items){
-      const li = document.createElement('li');
-      const n = document.createElement('span'); n.className='n'; n.textContent = it.name;
-      const s = document.createElement('span'); s.className='s'; s.textContent = fmt(it.size);
-      const b = document.createElement('button'); b.className='del'; b.textContent='删除';
-      b.onclick = async () => {
-        if(!confirm('从设备删除 ' + it.name + '？')) return;
-        await fetch('/api/delete?path=' + encodeURIComponent('/books/' + it.name), {method:'POST'});
-        books(); info();
-      };
-      li.append(n, s, b); ul.append(li);
-    }
-  }catch(e){ ul.innerHTML = '<li class="sub">读取失败：' + e + '</li>'; }
-}
-function row(name){
-  const li = document.createElement('li');
-  li.innerHTML = '<span class="n"></span><span class="bar"><i></i></span><span class="s">等待</span>';
-  li.querySelector('.n').textContent = name;
-  $('queue').prepend(li);
-  return li;
-}
-function setRow(li, pct, text, cls){
-  li.querySelector('.bar i').style.width = Math.max(0, Math.min(100, pct)) + '%';
-  const s = li.querySelector('.s'); s.textContent = text; s.className = 's ' + (cls || '');
-}
-function upload(file){
-  const li = row(file.name);
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/upload?name=' + encodeURIComponent(file.name) + '&dir=/books');
-  xhr.upload.onprogress = e => { if(e.lengthComputable) setRow(li, 100*e.loaded/e.total*0.15, '发给电脑端 ' + Math.round(100*e.loaded/e.total) + '%'); };
-  xhr.onload = () => {
-    let j; try{ j = JSON.parse(xhr.responseText); }catch(e){ setRow(li, 100, '出错', 'bad'); return; }
-    if(!j.id){ setRow(li, 100, j.msg || '出错', 'bad'); return; }
-    poll(li, j.id);
-  };
-  xhr.onerror = () => setRow(li, 100, '本机服务断了', 'bad');
-  xhr.send(file);
-}
-async function poll(li, id){
-  while(true){
-    await new Promise(r => setTimeout(r, 250));
-    let j; try{ j = await (await fetch('/api/progress?id=' + id)).json(); }catch(e){ setRow(li, 100, '轮询失败', 'bad'); return; }
-    if(j.state === 'sending'){ setRow(li, 15 + 85*(j.sent/Math.max(j.size,1)), '写入设备 ' + Math.round(100*j.sent/Math.max(j.size,1)) + '%'); continue; }
-    if(j.state === 'done'){ setRow(li, 100, j.msg, 'ok'); info(); books(); return; }
-    setRow(li, 100, j.msg || '失败', 'bad'); return;
-  }
-}
-let chain = Promise.resolve();
-function enqueue(files){ for(const f of files) chain = chain.then(() => upload(f)); }
-
-const drop = $('drop');
-drop.ondragover = e => { e.preventDefault(); drop.classList.add('on'); };
-drop.ondragleave = () => drop.classList.remove('on');
-drop.ondrop = e => { e.preventDefault(); drop.classList.remove('on'); enqueue([...e.dataTransfer.files].filter(f => /\\.(txt|epub)$/i.test(f.name))); };
-$('file').onchange = e => { enqueue([...e.target.files]); e.target.value = ''; };
-$('refresh').onclick = () => { books(); info(); };
-info(); books();
-</script></html>"""
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "usbput_page.html"), "r", encoding="utf-8") as f:
+        return f.read()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -460,12 +350,21 @@ class Handler(BaseHTTPRequestHandler):
                 port = DEV.port or find_port()
                 busy = DEV.lock.locked()
                 df = "" if busy else DEV.df()
-                return self._json({"port": port, "df": df, "busy": busy})
+                total = used = free = 0
+                m = re.search(r"容量\s*(\d+)\s*MB，已用\s*(\d+)\s*MB，剩余\s*(\d+)\s*MB", df)
+                if m:
+                    total, used, free = (int(m.group(i)) for i in (1, 2, 3))
+                return self._json(
+                    {"port": port, "df": df, "busy": busy, "total": total, "used": used, "free": free}
+                )
             except Exception as e:  # noqa: BLE001
                 return self._json({"port": DEV.port, "df": "", "busy": False, "error": str(e)})
-        if u.path == "/api/books":
+        if u.path == "/api/list":
+            d = parse_qs(u.query).get("dir", ["/books"])[0] or "/books"
+            if d not in ("/books", "/fonts"):
+                return self._json({"items": [], "error": "目录不对"}, 400)
             try:
-                items = [x for x in DEV.list_dir("/books") if not x["dir"]]
+                items = [x for x in DEV.list_dir(d) if not x["dir"]]
                 return self._json({"items": items})
             except Exception as e:  # noqa: BLE001
                 return self._json({"items": [], "error": str(e)}, 500)
@@ -482,9 +381,13 @@ class Handler(BaseHTTPRequestHandler):
             q = parse_qs(u.query)
             name = unquote(q.get("name", [""])[0] or "")
             name = os.path.basename(name)  # 只取文件名，防 ../
+            d = q.get("dir", ["/books"])[0] or "/books"
+            allowed = {"/books": BOOK_EXTS, "/fonts": FONT_EXTS}
+            if d not in allowed:
+                return self._json({"msg": "目录不对"}, 400)
             ext = os.path.splitext(name)[1].lower()
-            if not name or ext not in BOOK_EXTS:
-                return self._json({"msg": "只支持 TXT / EPUB"}, 400)
+            if not name or ext not in allowed[d]:
+                return self._json({"msg": "这个目录只收 " + " / ".join(allowed[d])}, 400)
             length = int(self.headers.get("Content-Length") or 0)
             if length <= 0:
                 return self._json({"msg": "空文件"}, 400)
@@ -506,11 +409,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"msg": str(e)}, 500)
             tid = uuid.uuid4().hex
             task_update(tid, state="sending", sent=0, size=length, msg="")
-            threading.Thread(target=worker, args=(tid, tmp, "/books/" + name), daemon=True).start()
+            threading.Thread(target=worker, args=(tid, tmp, d + "/" + name), daemon=True).start()
             return self._json({"id": tid}, 202)
         if u.path == "/api/delete":
             path = unquote(parse_qs(u.query).get("path", [""])[0] or "")
-            if not path.startswith("/books/") or ".." in path:
+            if not (path.startswith("/books/") or path.startswith("/fonts/")) or ".." in path:
                 return self._json({"msg": "路径不对"}, 400)
             try:
                 DEV.remove(path)

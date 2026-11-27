@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>墨芯 · 传书</title>
+<style>
+  :root {
+    --bg: #f6f4ee;
+    --card: #ffffff;
+    --ink: #1b1b1b;
+    --muted: #6f6a60;
+    --line: #e4dfd3;
+    --accent: #2f6f4f;
+    --accent-ink: #ffffff;
+    --danger: #b03a2e;
+    --track: #ece8dd;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 10px 30px rgba(0, 0, 0, .05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141412;
+      --card: #1c1c19;
+      --ink: #ece9e1;
+      --muted: #9a948a;
+      --line: #2c2b26;
+      --accent: #6fbf92;
+      --accent-ink: #10231a;
+      --danger: #e07a6a;
+      --track: #262520;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em; background: var(--track); padding: 1px 5px; border-radius: 5px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 30px 20px 56px; }
+  header.top { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+  .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .mark {
+    width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink); font-size: 22px; font-weight: 600;
+    box-shadow: var(--shadow); flex: none;
+  }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .3px; }
+  .tag { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .pill {
+    margin-left: auto; display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 13px; border-radius: 999px; background: var(--card);
+    border: 1px solid var(--line); font-size: 13px; color: var(--muted); white-space: nowrap;
+  }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: #c9a227; flex: none; }
+  .pill.ok i { background: var(--accent); }
+  .pill.bad i { background: var(--danger); }
+  .grid { display: grid; grid-template-columns: 1.12fr .88fr; gap: 18px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+    padding: 18px; box-shadow: var(--shadow);
+  }
+  .cardHead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .cardHead h2 { font-size: 14px; margin: 0; font-weight: 600; }
+  .count {
+    font-size: 12px; color: var(--muted); background: var(--track);
+    border-radius: 999px; padding: 1px 8px; min-width: 22px; text-align: center;
+  }
+  .ghost {
+    margin-left: auto; border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 9px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .ghost:hover { color: var(--ink); border-color: var(--muted); }
+  .drop {
+    border: 1.5px dashed #cfc7b6; border-radius: 18px; padding: 30px 22px; text-align: center;
+    transition: border-color .15s, background .15s, transform .15s;
+  }
+  .drop.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); transform: translateY(-1px); }
+  .drop svg { width: 38px; height: 38px; stroke: var(--muted); fill: none; stroke-width: 1.6; }
+  .drop h2 { font-size: 17px; margin: 12px 0 4px; font-weight: 600; }
+  .hint { color: var(--muted); font-size: 13px; margin: 4px 0; }
+  .hint.small { font-size: 12px; }
+  .drops { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    font-size: 14px; cursor: pointer; user-select: none;
+  }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.05); }
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow: auto; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 12px; }
+  .row:hover { background: color-mix(in srgb, var(--track) 55%, transparent); }
+  .badge {
+    width: 38px; height: 38px; border-radius: 10px; flex: none; display: grid; place-items: center;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .4px;
+    background: var(--track); color: var(--muted);
+  }
+  .badge.epub { background: color-mix(in srgb, #7a5cc0 18%, var(--track)); color: #7a5cc0; }
+  .badge.efnt { background: color-mix(in srgb, #b07d2a 20%, var(--track)); color: #a5761f; }
+  .main { flex: 1; min-width: 0; }
+  .name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .track { height: 7px; border-radius: 999px; background: var(--track); overflow: hidden; margin-top: 6px; }
+  .track > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .18s ease; }
+  .track > i.bad { background: var(--danger); }
+  .pct { font-size: 12px; color: var(--muted); min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+  .del, .retry {
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 8px; padding: 3px 9px; font-size: 12px; cursor: pointer;
+  }
+  .del:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+  .retry { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .done { color: var(--accent); }
+  .failed { color: var(--danger); }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 18px 0 6px; }
+  .metaRow { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .metaRow b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .storage .head { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-bottom: 7px; }
+  .storage .track { height: 9px; margin-top: 0; }
+  .tabs { display: inline-flex; background: var(--track); border-radius: 10px; padding: 3px; gap: 2px; }
+  .tab {
+    border: 0; background: transparent; color: var(--muted); font-size: 13px;
+    padding: 5px 13px; border-radius: 8px; cursor: pointer;
+  }
+  .tab.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  footer { margin-top: 26px; text-align: center; color: var(--muted); font-size: 12px; }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    header.top { flex-wrap: wrap; }
+    .pill { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="mark">墨</div>
+      <div>
+        <h1>墨芯 · 传书</h1>
+        <p class="tag">USB 直连，不用 Wi-Fi</p>
+      </div>
+    </div>
+    <div class="pill" id="pill"><i></i><span id="pillText">正在连接设备…</span></div>
+  </header>
+
+  <div class="grid">
+    <div class="col">
+      <section class="card drop" id="drop">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" stroke-linecap="round"/>
+        </svg>
+        <h2>把文件拖到这里</h2>
+        <p class="hint">TXT / EPUB 进 <code>/books</code>，字库 <code>.efnt</code> 进 <code>/fonts</code></p>
+        <div class="drops">
+          <label class="btn primary">选择书<input id="pickBook" type="file" multiple accept=".txt,.epub" hidden></label>
+          <label class="btn">选择字库<input id="pickFont" type="file" accept=".efnt" hidden></label>
+        </div>
+        <p class="hint small">设备要插着 USB；传输时别拔线，浅睡会自动重试。</p>
+      </section>
+
+      <section class="card">
+        <div class="cardHead">
+          <h2>传输队列</h2>
+          <span class="count" id="qCount">0</span>
+          <button class="ghost" id="clearDone">清除已完成</button>
+        </div>
+        <ul class="list" id="queue"></ul>
+        <div class="empty" id="qEmpty">还没有文件，拖一个进来</div>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="card">
+        <div class="cardHead">
+          <h2>设备</h2>
+          <button class="ghost" id="refresh">刷新</button>
+        </div>
+        <div class="metaRow"><span>串口</span><b id="port">—</b></div>
+        <div class="storage">
+          <div class="head"><span>TF 卡</span><span id="storageText">—</span></div>
+          <div class="track"><i id="storageBar"></i></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="cardHead">
+          <div class="tabs">
+            <button class="tab on" data-dir="/books">书</button>
+            <button class="tab" data-dir="/fonts">字库</button>
+          </div>
+          <span class="count" id="listCount">0</span>
+        </div>
+        <ul class="list" id="items"></ul>
+        <div class="empty" id="listEmpty">这里还是空的</div>
+      </section>
+    </div>
+  </div>
+
+  <footer>墨芯阅读器 · 传书走 USB 串口，和 <code>tools/tfcard.py</code> 同一套协议</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtSize = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB'
+                : b >= 1024 ? (b / 1024).toFixed(0) + ' KB' : b + ' B';
+const extOf = name => (name.split('.').pop() || '').toLowerCase();
+const badgeClass = ext => ext === 'epub' ? 'epub' : ext === 'efnt' ? 'efnt' : '';
+
+function badge(ext) {
+  const d = document.createElement('div');
+  d.className = 'badge ' + badgeClass(ext);
+  d.textContent = (ext || '?').toUpperCase();
+  return d;
+}
+
+async function info() {
+  const pill = $('pill'), text = $('pillText');
+  const friendly = e => /PermissionError|拒绝访问|Access is denied/i.test(e) ? '串口被占用（先关掉串口监视器或另一个传书窗口）'
+    : /could not open|FileNotFound|找不到|No such file/i.test(e) ? '没找到设备（插着 USB 吗？）'
+    : e;
+  try {
+    const j = await (await fetch('/api/info')).json();
+    $('port').textContent = j.port || '未连接';
+    if (j.error) {
+      pill.className = 'pill bad';
+      text.textContent = friendly(j.error);
+      pill.title = j.error;
+    } else {
+      pill.className = 'pill ok';
+      text.textContent = '已连接' + (j.busy ? ' · 忙' : '');
+      pill.title = '';
+    }
+    if (j.total) {
+      const used = j.used, total = j.total;
+      $('storageText').textContent = used + ' / ' + total + ' MB';
+      $('storageBar').style.width = Math.min(100, used / total * 100) + '%';
+    } else {
+      $('storageText').textContent = '—';
+      $('storageBar').style.width = '0%';
+    }
+  } catch (e) {
+    pill.className = 'pill bad';
+    text.textContent = '本机服务没响应';
+  }
+}
+
+let DIR = '/books';
+async function loadList() {
+  const ul = $('items'), empty = $('listEmpty');
+  try {
+    const j = await (await fetch('/api/list?dir=' + encodeURIComponent(DIR))).json();
+    ul.innerHTML = '';
+    $('listCount').textContent = (j.items || []).length;
+    if (!j.items || !j.items.length) { empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    for (const it of j.items) {
+      const li = document.createElement('li');
+      li.className = 'row';
+      li.append(badge(extOf(it.name)));
+      const main = document.createElement('div');
+      main.className = 'main';
+      const n = document.createElement('div'); n.className = 'name'; n.textContent = it.name;
+      const m = document.createElement('div'); m.className = 'meta'; m.textContent = fmtSize(it.size);
+      main.append(n, m);
+      const del = document.createElement('button');
+      del.className = 'del'; del.textContent = '删除';
+      del.onclick = async () => {
+        if (!confirm('从设备删除 ' + it.name + '？')) return;
+        await fetch('/api/delete?path=' + encodeURIComponent(DIR + '/' + it.name), { method: 'POST' });
+        loadList(); info();
+      };
+      li.append(main, del);
+      ul.append(li);
+    }
+  } catch (e) {
+    ul.innerHTML = '';
+    empty.style.display = 'block';
+    empty.textContent = '读取失败：' + e;
+  }
+}
+
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === t));
+  DIR = t.dataset.dir;
+  $('listEmpty').textContent = '这里还是空的';
+  loadList();
+});
+
+function queueRow(file, dir) {
+  const li = document.createElement('li');
+  li.className = 'row';
+  li.append(badge(extOf(file.name)));
+  const main = document.createElement('div');
+  main.className = 'main';
+  const n = document.createElement('div'); n.className = 'name'; n.textContent = file.name;
+  const m = document.createElement('div'); m.className = 'meta'; m.textContent = fmtSize(file.size);
+  const track = document.createElement('div'); track.className = 'track';
+  const fill = document.createElement('i'); track.append(fill);
+  main.append(n, m, track);
+  const pct = document.createElement('div'); pct.className = 'pct'; pct.textContent = '等待';
+  const retry = document.createElement('button');
+  retry.className = 'retry'; retry.textContent = '重试'; retry.style.display = 'none';
+  li.append(main, pct, retry);
+  $('queue').prepend(li);
+  $('qEmpty').style.display = 'none';
+  return { li, fill, pct, meta: m, retry, file, dir };
+}
+
+function pollDelay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function send(row) {
+  row.retry.style.display = 'none';
+  row.fill.classList.remove('bad');
+  row.pct.textContent = '发送…';
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/upload?name=' + encodeURIComponent(row.file.name) + '&dir=' + encodeURIComponent(row.dir));
+  xhr.upload.onprogress = e => {
+    if (e.lengthComputable) row.pct.textContent = Math.round(100 * e.loaded / e.total) + '%';
+  };
+  xhr.onload = () => {
+    let j = null;
+    try { j = JSON.parse(xhr.responseText); } catch (e) { /* ignore */ }
+    if (!j || !j.id) {
+      row.fill.classList.add('bad');
+      row.pct.textContent = (j && j.msg) || '失败';
+      row.pct.className = 'pct failed';
+      row.retry.style.display = '';
+      return;
+    }
+    watch(row, j.id);
+  };
+  xhr.onerror = () => {
+    row.fill.classList.add('bad');
+    row.pct.textContent = '服务断了';
+    row.retry.style.display = '';
+  };
+  xhr.send(row.file);
+}
+
+async function watch(row, id) {
+  let last = 0, lastT = performance.now();
+  while (true) {
+    await pollDelay(300);
+    let j;
+    try {
+      j = await (await fetch('/api/progress?id=' + id)).json();
+    } catch (e) {
+      row.pct.textContent = '进度丢了';
+      return;
+    }
+    const p = j.size ? j.sent / j.size : 0;
+    row.fill.style.width = (p * 100).toFixed(0) + '%';
+    const now = performance.now();
+    const speed = (j.sent - last) / Math.max(0.001, (now - lastT) / 1000);
+    last = j.sent; lastT = now;
+    if (j.state === 'sending') {
+      row.pct.className = 'pct';
+      row.pct.textContent = Math.round(p * 100) + '%' + (speed > 0 ? ' · ' + fmtSize(speed) + '/s' : '');
+      row.meta.textContent = fmtSize(j.sent) + ' / ' + fmtSize(j.size || row.file.size);
+      continue;
+    }
+    if (j.state === 'done') {
+      row.fill.style.width = '100%';
+      row.pct.className = 'pct done';
+      row.pct.textContent = '完成';
+      row.meta.textContent = fmtSize(row.file.size) + ' · CRC 通过';
+      info(); loadList();
+    } else {
+      row.fill.classList.add('bad');
+      row.pct.className = 'pct failed';
+      row.pct.textContent = j.msg || '失败';
+      row.retry.style.display = '';
+    }
+    return;
+  }
+}
+
+let chain = Promise.resolve();
+function enqueue(files) {
+  for (const f of files) {
+    const ext = extOf(f.name);
+    if (!['txt', 'epub', 'efnt'].includes(ext)) continue;
+    const dir = ext === 'efnt' ? '/fonts' : '/books';
+    const row = queueRow(f, dir);
+    row.retry.onclick = () => { send(row); };
+    chain = chain.then(() => send(row));
+  }
+  refreshCount();
+}
+
+function refreshCount() {
+  $('qCount').textContent = $('queue').children.length;
+}
+
+$('pickBook').onchange = e => { enqueue([...e.target.files]); e.target.value = ''; };
+$('pickFont').onchange = e => { enqueue([...e.target.files]); e.target.value = ''; };
+$('clearDone').onclick = () => {
+  [...$('queue').children].forEach(li => {
+    const t = li.querySelector('.pct');
+    if (t && (t.classList.contains('done') || t.classList.contains('failed'))) li.remove();
+  });
+  refreshCount();
+};
+$('refresh').onclick = () => { info(); loadList(); };
+
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add('on');
+}));
+['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => {
+  e.preventDefault();
+  if (ev === 'drop' || e.target === document.documentElement) drop.classList.remove('on');
+}));
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('on');
+  enqueue([...e.dataTransfer.files]);
+});
+
+info();
+loadList();
+setInterval(info, 15000);
+</script>
+</body>
+</html>
