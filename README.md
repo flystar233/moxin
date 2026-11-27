@@ -185,7 +185,7 @@ pio run -e pcb1_serial -t upload --upload-port COM6
 **联网升级**（设备上点"系统设置 → 检查新版本"才联网查，不定时查、不自动装）：
 
 1. 把 `src/config.h` 的 `OTA_URL` 改成你服务器上 version.json 的网址（必须是 HTTPS，证书由固件里自带的根证书包校验）
-2. 发版：改 `FW_VERSION` → `pio run` → `python tools/release.py --notes "更新说明"`，生成 `app/dist/firmware-<版本>.bin` 和 `app/dist/version.json`（`dist/` 不提交，见 `.gitignore`）
+2. 发版：改 `FW_VERSION` → `pio run` → `python tools/release.py --notes "更新说明"`，生成 `dist/firmware-<版本>.bin` 和 `dist/version.json`（`dist/` 不提交，见 `.gitignore`）
 3. 两个文件传到 `OTA_URL` 所在的目录，**先传 bin、后传 version.json**
 
 设备查到比本机新的版本，会显示版本号和更新说明，按菜单键确定才下载安装；用电池时电量要 30% 以上。下载完校验通过才切换，然后重启进新固件试运行。
@@ -286,9 +286,9 @@ tools/          makefont.py、tfcard.py、shot.py、gen_gbk.py；readertest/ 在
                 ttstest/ 在电脑上测按句切分、SSE/base64/WAV 解析；tts_probe.py 在电脑上试语音 API
 ```
 
-`platformio.ini` 在仓库根目录，所以在仓库根目录运行 `pio run`；上面写 `python tools/...`、`-Isrc` 之类的命令在 `app/` 目录下运行。
+所有命令都在仓库根目录运行：`pio run`、`python tools/...`、`-Isrc` 都按根目录算。
 
-界面是一个栈：最底下是根界面（桌面或阅读），上面叠菜单、目录、提示框。每个界面只做两件事：`draw()` 画自己，`onKey()` 处理按键；要重画就调 `app::invalidate()`。什么时候全刷、什么时候局刷、什么时候睡，都在 `app/app.cpp` 里统一决定：
+界面是一个栈：最底下是根界面（桌面或阅读），上面叠菜单、目录、提示框。每个界面只做两件事：`draw()` 画自己，`onKey()` 处理按键；要重画就调 `app::invalidate()`。什么时候全刷、什么时候局刷、什么时候睡，都在 `src/app/app.cpp` 里统一决定：
 
 - 翻页局刷，每 N 页全刷一次（设置里改）
 - 菜单里移动光标局刷，关掉菜单回到正文时全刷一次（清掉菜单的残影）

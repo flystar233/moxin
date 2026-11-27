@@ -19,7 +19,6 @@ venv/
 Thumbs.db
 
 # 发版产物（tools/release.py 生成）
-app/dist/
 dist/
 
 # 只留在本地、不发布的资料
