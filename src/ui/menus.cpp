@@ -450,6 +450,12 @@ class SystemSettings : public MenuView {
 };
 View *newSystemSettings() { return new SystemSettings(); }
 
+// 50% 棋盘格：墨水屏只有黑白，用点阵“骗”出阴影
+static void ditherRect(int x, int y, int w, int h) {
+  for (int j = 0; j < h; j++)
+    for (int i = (j & 1); i < w; i += 2) gfx::d().drawPixel(x + i, y + j, EPD_BLACK);
+}
+
 // =====================================================================
 // 书库：封面网格，封面正中写书名
 // =====================================================================
@@ -482,9 +488,11 @@ class LibraryView : public View {
 
     const int cw = cellW(), ch = cellH(), g = gap(), M = ui::margin();
     const int cols = this->cols();
-    const int pd = ui::pad();
-    const int lh = gfx::lineH(Font::Small);
-    const int asc = gfx::ascent(Font::Small);
+    const int sh = gfx::px(5);             // 阴影往右下错开这么多
+    const int bw = cw - sh, bh = ch - sh;  // 封面本体（剩下的留给阴影）
+    const int sp = gfx::px(13);            // 书脊宽度
+    const int lhS = gfx::lineH(Font::Small), ascS = gfx::ascent(Font::Small);
+    const int lhU = gfx::lineH(Font::Ui), ascU = gfx::ascent(Font::Ui);
 
     for (int i = page * per; i < n && i < (page + 1) * per; i++) {
       const int k = i - page * per;
@@ -492,28 +500,56 @@ class LibraryView : public View {
       const int y = top + (k / cols) * (ch + g);
       const bool sel = (i == cursor_);
       const uint16_t fg = sel ? EPD_WHITE : EPD_BLACK;
-      if (sel) {
-        gfx::d().fillRect(x, y, cw, ch, EPD_BLACK);
-      } else {
-        gfx::d().drawRect(x, y, cw, ch, EPD_BLACK);
+
+      // 阴影：右边一条、下边一条
+      ditherRect(x + bw, y + sh, sh, bh);
+      ditherRect(x + sh, y + bh, bw, sh);
+
+      // 封面：选中反色；内外两道框，像精装的压边
+      if (sel) gfx::d().fillRect(x, y, bw, bh, EPD_BLACK);
+      gfx::d().drawRect(x, y, bw, bh, fg);
+      gfx::d().drawRect(x + gfx::px(3), y + gfx::px(3), bw - gfx::px(6), bh - gfx::px(6), fg);
+
+      // 书脊：一道竖线 + 上下两道横带
+      const int spineX = x + sp;
+      gfx::d().drawLine(spineX, y + gfx::px(4), spineX, y + bh - gfx::px(4), fg);
+      gfx::d().drawLine(x + gfx::px(2), y + gfx::px(7), spineX - gfx::px(2), y + gfx::px(7), fg);
+      gfx::d().drawLine(x + gfx::px(2), y + bh - gfx::px(7), spineX - gfx::px(2), y + bh - gfx::px(7), fg);
+
+      // 书口：右侧两道细线，像叠起来的纸页
+      for (int kk = 1; kk <= 2; kk++) {
+        int lx = x + bw - gfx::px(2 + kk * 3);
+        gfx::d().drawLine(lx, y + gfx::px(8), lx, y + bh - gfx::px(8), fg);
       }
 
-      // 书脊：左边竖线
-      const int spine = x + gfx::px(9);
-      gfx::d().drawLine(spine, y + pd, spine, y + ch - pd, fg);
-
-      // 书名：封面中间折几行
-      const int titleX = spine + gfx::px(8);
-      const int titleW = x + cw - pd - titleX;
-      int maxLines = (ch - 2 * pd - lh) / lh;
-      if (maxLines < 1) maxLines = 1;
-      if (maxLines > 4) maxLines = 4;
-      auto lines = ui::wrap(books[i].title, Font::Small, titleW, maxLines, true);
-      const int blockH = (int)lines.size() * lh;
-      int baseline = y + (ch - blockH) / 2 + asc;
+      // 书名：能一行放下就用大字 / 小字，放不下才折行
+      const int titleX = spineX + gfx::px(7);
+      const int titleW = x + bw - gfx::px(9) - titleX;
+      Font tf = Font::Small;
+      int tlh = lhS, tasc = ascS;
+      std::vector<String> lines;
+      if (gfx::textW(books[i].title, Font::Ui) <= titleW) {
+        tf = Font::Ui;
+        tlh = lhU;
+        tasc = ascU;
+        lines.push_back(books[i].title);
+      } else if (gfx::textW(books[i].title, Font::Small) <= titleW) {
+        lines.push_back(books[i].title);
+      } else {
+        int areaTop = y + gfx::px(12);
+        int areaBot = y + bh - gfx::px(24);
+        int maxLines = (areaBot - areaTop) / tlh;
+        if (maxLines < 1) maxLines = 1;
+        if (maxLines > 4) maxLines = 4;
+        lines = ui::wrap(books[i].title, tf, titleW, maxLines, true);
+      }
+      int areaTop = y + gfx::px(12);
+      int areaBot = y + bh - gfx::px(24);
+      const int blockH = (int)lines.size() * tlh;
+      int baseline = areaTop + ((areaBot - areaTop) - blockH) / 2 + tasc;
       for (const String &line : lines) {
-        gfx::text(titleX, baseline, line, Font::Small, fg);
-        baseline += lh;
+        gfx::text(titleX, baseline, line, tf, fg);
+        baseline += tlh;
       }
 
       // 底下小字：在读 / 进度 / 新
@@ -521,7 +557,7 @@ class LibraryView : public View {
                       : books[i].permille >= 1000 ? String("读完")
                                                   : pct(books[i].permille);
       String meta = (bookIsOpen() && books[i].path == bookPath()) ? String("在读 · ") + suffix : suffix;
-      gfx::textCenter(x + cw / 2, y + ch - pd, meta, Font::Small, fg);
+      gfx::textCenter(x + bw / 2 + gfx::px(4), y + bh - gfx::px(9), meta, Font::Small, fg);
     }
   }
 
