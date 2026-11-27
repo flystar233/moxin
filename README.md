@@ -150,8 +150,7 @@ Wi-Fi 使用期间 `net::busy()` 返回 true，主循环据此禁止进入睡眠
 
 两条路，都不用读卡器：
 
-- **USB（不用 Wi-Fi）**：`python tools/usbput.py`，浏览器打开 `http://127.0.0.1:8765/`，把 TXT / EPUB 拖进去。本机的小服务走 USB 串口，按 `fput` 协议写卡（16KB 一块、每块回执、整文件 CRC32），和设备自带的无线传输是同一套底层协议。设备插着 USB、跑着本固件就能用。
-- **USB 双击版**：`dist/墨芯传书.exe`（用 `tools/build_exe.ps1` 打的包，不在仓库里）——不用装 Python，双击后浏览器自动打开；首次运行可能被 Windows SmartScreen 拦一下，点“仍要运行”。它和上面那个 Python 版是同一份代码，只是打包成单文件。
+- **USB（不用 Wi-Fi）**：`python tools/usbput.py`，浏览器打开 `http://127.0.0.1:8765/`，把 TXT / EPUB 拖进去。本机的小服务走 USB 串口，按 `fput` 协议写卡（16KB 一块、每块回执、整文件 CRC32），和设备自带的无线传输是同一套底层协议。设备插着 USB、跑着本固件就能用。Windows 上用 PlatformIO 自带的 Python：`%USERPROFILE%\.platformio\penv\Scripts\python.exe tools\usbput.py`。
 - **Wi-Fi**：设备上进 系统设置 → Wi-Fi → 无线传输，屏幕会显示网址和二维码；浏览器里能传书、传字库、传固件，也能改朗读设置。
 - 命令行版是 `tools/tfcard.py`（`put / ls / rm / df`），适合批量或写脚本。
 
