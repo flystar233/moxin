@@ -156,6 +156,8 @@ Wi-Fi 使用期间 `net::busy()` 返回 true，主循环据此禁止进入睡眠
 
 只收 `.txt`、`.epub`（字库是 `.efnt`），中文文件名可以；USB 传的时候别拔线，设备要是浅睡了工具会自动重试。
 
+如果运行时报 `No module named 'serial.tools'`，说明当前这个 Python 里的 `serial` 不是 pyserial：改用上面 PlatformIO 的 Python，或者在那个环境里 `python -m pip install pyserial`（若提示 serial 已存在但不对，先 `python -m pip uninstall serial`）。串口会自动找；找不到列表时会挨个 COM 口问一句，也可以用 `--port COM17` 直接指定。
+
 ## TF 卡
 
 FAT32 格式。

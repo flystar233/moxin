@@ -22,8 +22,26 @@ import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-import serial
-from serial.tools import list_ports
+try:
+    import serial
+except ImportError:
+    serial = None
+
+list_ports = None
+if serial is not None:
+    try:
+        from serial.tools import list_ports
+    except ImportError:  # 有的环境里装的是假的 serial 包，或者 pyserial 太老
+        list_ports = None
+
+if serial is None or not hasattr(serial, "Serial"):
+    sys.exit(
+        "没有可用的 pyserial。\n"
+        "  1) 用 PlatformIO 自带的 Python（推荐，已经装好）：\n"
+        "     %USERPROFILE%\\.platformio\\penv\\Scripts\\python.exe tools\\usbput.py\n"
+        "  2) 或者在你现在这个 Python 里装：python -m pip install pyserial\n"
+        "     （如果提示 serial 已存在但不对：先 python -m pip uninstall serial，再装 pyserial）"
+    )
 
 CHUNK = 16384  # 和固件 src/core/xfer.cpp 的 CHUNK 一样
 ACK = b"\x06"
@@ -33,11 +51,72 @@ FONT_EXTS = (".efnt",)
 # ---------------------------------------------------------------- 串口设备
 
 
+def _windows_com_ports():
+    """list_ports 用不了时，从注册表拿 COM 口列表（Windows）。"""
+    ports = []
+    if os.name != "nt":
+        return ports
+    try:
+        import winreg
+
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DEVICEMAP\SERIALCOMM")
+        i = 0
+        while True:
+            try:
+                _, val, _ = winreg.EnumValue(key, i)
+            except OSError:
+                break
+            ports.append(str(val))
+            i += 1
+    except OSError:
+        pass
+    return ports
+
+
+def _probe_device(port):
+    """打开串口问一句 fdf，能回 OK 就说明是墨芯（用来在多个 COM 口里认设备）。"""
+    try:
+        s = serial.Serial()
+        s.port, s.baudrate, s.timeout, s.write_timeout = port, 115200, 0.1, 0.5
+        s.dtr = False
+        s.rts = False
+        s.open()
+        try:
+            s.write(b"\r\nfdf\r\n")
+            end = time.time() + 1.5
+            buf = b""
+            while time.time() < end:
+                buf += s.read(64)
+                if b"OK " in buf or b"ERR " in buf:
+                    return True
+        finally:
+            s.close()
+    except Exception:  # noqa: BLE001
+        return False
+    return False
+
+
 def find_port(prefer=None):
     if prefer:
         return prefer
-    cands = [p.device for p in list_ports.comports() if p.vid == 0x303A]  # Espressif
-    return cands[0] if cands else None
+    comps = []
+    if list_ports is not None:
+        try:
+            comps = list(list_ports.comports())
+        except Exception:  # noqa: BLE001
+            comps = []
+    esp = [p.device for p in comps if getattr(p, "vid", None) == 0x303A]  # Espressif
+    if esp:
+        return esp[0]
+    devs = [p.device for p in comps]
+    if not devs:
+        devs = _windows_com_ports()
+    if len(devs) == 1:
+        return devs[0]
+    for d in devs:
+        if _probe_device(d):
+            return d
+    return None
 
 
 def open_serial(port):
@@ -110,7 +189,7 @@ class Device:
             return self.ser
         port = find_port(self.port)
         if not port:
-            raise RuntimeError("没找到设备串口：插着 USB 吗？（也可以用 --port 指定）")
+            raise RuntimeError("没找到设备串口：插着 USB 吗？（也可以用 --port COM17 指定）")
         self.port = port
         self.ser = open_serial(port)
         return self.ser
