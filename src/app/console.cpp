@@ -34,7 +34,7 @@ static void printHelp() {
       "姿态  pose | poselog | tapdbg on/off | keys 按键电平\n"
       "省电  sleep on/off 浅睡 | sleepforce on/off 插着 USB 也睡 | deep [秒] 马上深睡（测试）\n"
       "声音  beep [Hz] [ms] [音量%] 单音（默认 1000 500 30）| sweep [音量%] 扫频 100～8000Hz | scale [音量%] 音阶\n"
-      "朗读  tts 状态 | tts model edge|plus | tts ws <业务空间ID>（clear 清除）| tts key sk-...（clear）\n"
+      "朗读  tts 状态 | tts model edge|flash | tts ws <业务空间ID>（clear 清除）| tts key sk-...（clear）\n"
       "      tts voice <名字>（不带参数列出来）| tts speed 1.25（0.5～2）| tts vol 70 | tts play 从本页念 | tts say 一段文字 | tts stop | tts next / prev\n"
       "其他  time 2026-11-08 21:30:00 对时 | info 状态 | mem 内存 | cache clear 清阅读缓存（重新导入）\n"
       "TF 卡 fls [目录] | frm <路径> | fdf | 传文件用电脑上的 tools/tfcard.py");
@@ -106,11 +106,11 @@ static void handle(String c) {
     if (!a.length()) {
       for (int i = 0; i < tts::modelCount(); i++)
         Serial.printf("  %-28s %s\n", tts::modelId(i), tts::modelLabel(tts::modelId(i)).c_str());
-      Serial.printf("现在：%s（别名 edge / plus 也能用）\n", tts::modelLabel(settings().ttsModel).c_str());
+      Serial.printf("现在：%s（别名 edge / flash 也能用）\n", tts::modelLabel(settings().ttsModel).c_str());
     } else {
-      String m = (a.equalsIgnoreCase("edge") || a.equalsIgnoreCase("flash")) ? String(TTS_MODEL_EDGE)
-                 : a.equalsIgnoreCase("plus")                            ? String(TTS_MODEL_PLUS)
-                                                                         : a;
+      String m = a.equalsIgnoreCase("edge")                                         ? String(TTS_MODEL_EDGE)
+                 : (a.equalsIgnoreCase("flash") || a.equalsIgnoreCase("plus"))      ? String(TTS_MODEL_FLASH)
+                                                                                    : a;
       settings().ttsModel = m;
       settings().ttsVoice = tts::defaultVoice(m);
       tts::setModel(m, settings().ttsWs);
@@ -118,8 +118,8 @@ static void handle(String c) {
       settingsSave();
       Serial.printf("模型：%s，音色 %s\n", tts::modelLabel(m).c_str(),
                     tts::voiceLabel(m, settings().ttsVoice).c_str());
-      if (m == TTS_MODEL_PLUS && !settings().ttsWs.length())
-        Serial.println("（plus 还需要业务空间 ID：tts ws <ID>）");
+      if (m == TTS_MODEL_FLASH && !settings().ttsWs.length())
+        Serial.println("（flash 还需要业务空间 ID：tts ws <ID>）");
     }
   } else if (c.startsWith("tts ws")) {
     String a = c.substring(6);

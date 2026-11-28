@@ -367,9 +367,9 @@ bool wsRecvFrame(WiFiClientSecure &tls, libhelix::MP3DecoderHelix &mp3, size_t &
 }
 
 // =====================================================================
-// qwen-audio-3.1-tts-plus：阿里云百炼，HTTP 流式
+// qwen-audio-3.1-tts-flash：阿里云百炼，HTTP 流式
 // =====================================================================
-SynthResult plusSynth(const String &text, const Params &p, speech::PcmSink &sink, const volatile bool *stop) {
+SynthResult flashSynth(const String &text, const Params &p, speech::PcmSink &sink, const volatile bool *stop) {
   SynthResult r;
   String key = p.key;
   key.trim();
@@ -396,10 +396,10 @@ SynthResult plusSynth(const String &text, const Params &p, speech::PcmSink &sink
   }
 
   String voice = p.voice;
-  if (!voice.length()) voice = TTS_VOICE_PLUS;
+  if (!voice.length()) voice = TTS_VOICE_FLASH;
 
-  String url = String("https://") + ws + TTS_PLUS_HOST_SUFFIX + TTS_PLUS_PATH;
-  String body = String("{\"model\":\"") + TTS_MODEL_PLUS + "\",\"input\":{\"text\":\"" + jsonEscape(text) +
+  String url = String("https://") + ws + TTS_FLASH_HOST_SUFFIX + TTS_FLASH_PATH;
+  String body = String("{\"model\":\"") + TTS_MODEL_FLASH + "\",\"input\":{\"text\":\"" + jsonEscape(text) +
                 "\",\"voice\":\"" + jsonEscape(voice) + "\",\"format\":\"pcm\",\"sample_rate\":" + String(TTS_RATE) +
                 ",\"volume\":100}}";
   String auth = "Bearer " + key;
@@ -652,7 +652,7 @@ SynthResult Client::speakEdge(const String &text, const Params &p, speech::PcmSi
 }
 
 SynthResult Client::speak(const String &text, const Params &p, speech::PcmSink &sink, const volatile bool *stop) {
-  if (p.model == TTS_MODEL_PLUS) return plusSynth(text, p, sink, stop);
+  if (p.model == TTS_MODEL_FLASH) return flashSynth(text, p, sink, stop);
   return speakEdge(text, p, sink, stop);
 }
 

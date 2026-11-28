@@ -13,10 +13,10 @@ struct Settings {
   float tapThr;           // 敲击门限（g）
   // 屏
   uint8_t pfBlack, pfWhite;  // 局刷波形
-  // 朗读（Edge 朗读 / qwen-audio-3.1-tts-plus）
+  // 朗读（Edge 朗读 / qwen-audio-3.1-tts-flash）
   String ttsModel;        // 模型 ID
-  String ttsWs;           // 业务空间 ID（plus 模型用；百炼控制台右上角复制）
-  String ttsKey;          // 百炼 API Key（只有 plus 用；无线传输网页或串口 tts key 设置）
+  String ttsWs;           // 业务空间 ID（flash 模型用；百炼控制台右上角复制）
+  String ttsKey;          // 百炼 API Key（只有 flash 用；无线传输网页或串口 tts key 设置）
   String ttsVoice;        // 音色：zh-CN-YunyangNeural / longanhuan_v3.1 / ...
   uint8_t ttsVolume;      // 音量 %
   float ttsSpeed;         // 语速倍率（0.5～2.0）

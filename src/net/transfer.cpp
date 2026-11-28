@@ -172,12 +172,12 @@ footer{margin-top:24px;text-align:center;color:var(--muted);font-size:12px}
 <div class="col">
 <section class="card">
 <div class="head"><h2>朗读设置</h2><span class="tag" id="ttsVoice" style="margin-left:auto"></span></div>
-<label class="field">模型<select id="ttsModel"><option value="edge">Edge 朗读（免费）</option><option value="qwen-audio-3.1-tts-plus">qwen-audio-3.1-tts-plus（付费）</option></select></label>
-<label class="field">API Key（只有 plus 用）<input id="ttsKey" type="password" placeholder="sk-..." autocomplete="off"></label>
-<label class="field">业务空间 ID（只有 plus 用）<input id="ttsWs" placeholder="百炼控制台右上角复制"></label>
+<label class="field">模型<select id="ttsModel"><option value="edge">Edge 朗读（免费）</option><option value="qwen-audio-3.1-tts-flash">qwen-audio-3.1-tts-flash（付费）</option></select></label>
+<label class="field">API Key（只有 flash 用）<input id="ttsKey" type="password" placeholder="sk-..." autocomplete="off"></label>
+<label class="field">业务空间 ID（只有 flash 用）<input id="ttsWs" placeholder="百炼控制台右上角复制"></label>
 <label class="field">语速（0.5～2.0）<input id="ttsSpeed" type="number" step="0.05" min="0.5" max="2"></label>
 <div class="actions"><button class="btn primary" id="ttsSave">保存</button><span class="msg" id="ttsMsg"></span></div>
-<p class="note">Edge 免费，但要设备时间准确（开机自动联网对时）；plus 走阿里云百炼，按字符计费。</p>
+<p class="note">Edge 免费，但要设备时间准确（开机自动联网对时）；flash 走阿里云百炼，按字符计费。</p>
 </section>
 <section class="card">
 <div class="head"><h2>固件升级</h2></div>
@@ -375,7 +375,7 @@ static void apiTtsSet() {
   if (s_srv->hasArg("model")) {
     String model = s_srv->arg("model");
     model.trim();
-    if (model == TTS_MODEL_EDGE || model == TTS_MODEL_PLUS) {
+    if (model == TTS_MODEL_EDGE || model == TTS_MODEL_FLASH) {
       if (model != st.ttsModel) {  // 只在真的换了模型时才重置音色（音色名不能跨模型）
         st.ttsModel = model;
         st.ttsVoice = tts::defaultVoice(model);

@@ -4,20 +4,20 @@
 // 两个模型：
 //   Edge 朗读（免费）：微软 Edge 的在线朗读接口，WebSocket + 按时间算的令牌；
 //     整个朗读会话复用一条连接（每句新建连接要 1 秒多，合成跟不上就会卡）。
-//   qwen-audio-3.1-tts-plus：阿里云百炼，HTTP 流式，要 API Key + 业务空间 ID。
+//   qwen-audio-3.1-tts-flash：阿里云百炼，HTTP 流式，要 API Key + 业务空间 ID。
 #include <Arduino.h>
 
 #include "sse_pcm.h"
 
 namespace tts {
 
-// 这一次请求用哪个模型、音色、语速、Key、业务空间（plus 需要）
+// 这一次请求用哪个模型、音色、语速、Key、业务空间（flash 需要）
 struct Params {
-  String model;        // TTS_MODEL_EDGE 或 TTS_MODEL_PLUS
+  String model;        // TTS_MODEL_EDGE 或 TTS_MODEL_FLASH
   String voice;
   float speed = 1.0f;  // 语速倍率（0.5～2.0）
   String key;
-  String workspace;  // 业务空间 ID：只有 qwen-audio-3.1-tts-plus 用
+  String workspace;  // 业务空间 ID：只有 qwen-audio-3.1-tts-flash 用
 };
 
 struct SynthResult {

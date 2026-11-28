@@ -29,7 +29,7 @@ struct ModelDef {
   const char *id;
   const char *label;
 };
-const ModelDef MODELS[] = {{TTS_MODEL_EDGE, "Edge 朗读（免费）"}, {TTS_MODEL_PLUS, "qwen-audio-3.1-tts-plus"}};
+const ModelDef MODELS[] = {{TTS_MODEL_EDGE, "Edge 朗读（免费）"}, {TTS_MODEL_FLASH, "qwen-audio-3.1-tts-flash"}};
 
 struct VoiceDef {
   const char *id;
@@ -48,25 +48,25 @@ const VoiceDef EDGE_VOICES[] = {
     {"zh-HK-HiuMaanNeural", "曉曼（粤语）"},
     {"zh-TW-HsiaoChenNeural", "曉臻（台湾）"},
 };
-const VoiceDef PLUS_VOICES[] = {
+const VoiceDef FLASH_VOICES[] = {
     {"longanlingxin_v3.1", "龙安灵心（女）"},
     {"xunanchuan_v3.1", "许南川（男）"},
     {"longanhuan_v3.1", "龙安欢（女）"},
     {"longanfengyue_v3.1", "龙安风悦（女）"},
 };
 
-bool isPlusModelId(const String &m) { return m == TTS_MODEL_PLUS; }
+bool isFlashModelId(const String &m) { return m == TTS_MODEL_FLASH; }
 
 const VoiceDef *voicesOf(const String &model, int &count) {
-  if (isPlusModelId(model)) {
-    count = (int)(sizeof(PLUS_VOICES) / sizeof(PLUS_VOICES[0]));
-    return PLUS_VOICES;
+  if (isFlashModelId(model)) {
+    count = (int)(sizeof(FLASH_VOICES) / sizeof(FLASH_VOICES[0]));
+    return FLASH_VOICES;
   }
   count = (int)(sizeof(EDGE_VOICES) / sizeof(EDGE_VOICES[0]));
   return EDGE_VOICES;
 }
 
-const char *defaultVoiceId(const String &model) { return isPlusModelId(model) ? TTS_VOICE_PLUS : TTS_VOICE_EDGE; }
+const char *defaultVoiceId(const String &model) { return isFlashModelId(model) ? TTS_VOICE_FLASH : TTS_VOICE_EDGE; }
 
 bool voiceKnown(const String &model, const String &name) {
   int n = 0;
@@ -453,12 +453,12 @@ bool beginSession(uint32_t off, bool say, const String &text) {
     return false;
   }
   String model = st.ttsModel.length() ? st.ttsModel : String(TTS_MODEL_EDGE);
-  if (!isPlusModelId(model)) model = TTS_MODEL_EDGE;  // 老设置里可能是 qwen3-tts-flash，统一算 Edge
-  if (isPlusModelId(model) && !st.ttsKey.length()) {
+  if (!isFlashModelId(model)) model = TTS_MODEL_EDGE;  // 不认识的模型名统一算 Edge
+  if (isFlashModelId(model) && !st.ttsKey.length()) {
     s_taskErr = "这个模型要先填 API Key";
     return false;
   }
-  if (isPlusModelId(model) && !st.ttsWs.length()) {
+  if (isFlashModelId(model) && !st.ttsWs.length()) {
     s_taskErr = "这个模型要先填业务空间 ID";
     return false;
   }
@@ -577,8 +577,8 @@ bool ready(String *why) {
   String w;
   String model = st.ttsModel.length() ? st.ttsModel : String(TTS_MODEL_EDGE);
   if (!st.wifiOn) w = "Wi-Fi 已关闭";
-  else if (isPlusModelId(model) && !st.ttsKey.length()) w = "这个模型要填 API Key";
-  else if (isPlusModelId(model) && !st.ttsWs.length()) w = "这个模型要填业务空间 ID";
+  else if (isFlashModelId(model) && !st.ttsKey.length()) w = "这个模型要填 API Key";
+  else if (isFlashModelId(model) && !st.ttsWs.length()) w = "这个模型要填业务空间 ID";
   else if (!net::hasCredentials()) w = "还没配网";
   if (why) *why = w;
   return w.length() == 0;
@@ -694,7 +694,7 @@ void setKey(const String &key) {
 
 void setModel(const String &model, const String &workspace) {
   String m = model.length() ? model : String(TTS_MODEL_EDGE);
-  if (!isPlusModelId(m)) m = TTS_MODEL_EDGE;
+  if (!isFlashModelId(m)) m = TTS_MODEL_EDGE;
   String v = s_voice;
   if (!voiceKnown(m, v)) v = defaultVoiceId(m);
   if (!s_mtx) {
@@ -816,7 +816,7 @@ String modelLabel(const String &model) {
 
 String defaultVoice(const String &model) { return defaultVoiceId(model); }
 // 元/万字符（Edge 朗读免费，返回 0）
-float modelPrice(const String &model) { return isPlusModelId(model) ? TTS_PRICE_PLUS : 0.0f; }
+float modelPrice(const String &model) { return isFlashModelId(model) ? TTS_PRICE_FLASH : 0.0f; }
 
 int voiceCount(const String &model) {
   int n = 0;

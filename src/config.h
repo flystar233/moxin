@@ -145,14 +145,14 @@
 #define BOOK_MAX_FILES      200
 #define CHAPTER_MAX         20000
 
-// ---------------- 语音朗读（Edge 朗读 / 阿里云 qwen-audio-3.1-tts-plus） ----------------
+// ---------------- 语音朗读（Edge 朗读 / 阿里云 qwen-audio-3.1-tts-flash） ----------------
 // 按句请求：发一句文本，服务端流式返回 24kHz 16bit 单声道 PCM，收到就送 I2S 放出来；
 // 同时后台预合成后面一两句，句子之间听不出停顿。
 //
 // Edge 朗读：免费，直接连微软 Edge 浏览器的在线朗读接口（WebSocket，整个会话复用一条连接）。
 //   不需要 Key，但要求设备时间正确：令牌 Sec-MS-GEC 是按当前时间（5 分钟一档）
 //   算出来的 SHA-256，时钟差超过几分钟就会被拒。系统开机会自动联网对时。
-// plus：阿里云百炼的专业模型，音质更好，1.44 元/万字符。
+// flash：阿里云百炼的 qwen-audio-3.1-tts-flash，音质比 Edge 好，按字符计费。
 //   要 API Key（系统设置 → Wi-Fi → 无线传输 的网页里填，或串口 tts key sk-...）
 //   和业务空间 ID（百炼控制台右上角图标里复制，或串口 tts ws <ID>）。
 #define TTS_MODEL_EDGE         "edge"
@@ -167,12 +167,13 @@
 // 另一个可选模型：专业级、音质更好（北京），免费额度以控制台为准。
 // 它走另一套端点，地址里要带业务空间 ID：
 //   https://<业务空间ID>.cn-beijing.maas.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer
-#define TTS_MODEL_PLUS        "qwen-audio-3.1-tts-plus"
-#define TTS_PLUS_HOST_SUFFIX  ".cn-beijing.maas.aliyuncs.com"
-#define TTS_PLUS_PATH         "/api/v1/services/audio/tts/SpeechSynthesizer"
-#define TTS_VOICE_PLUS        "longanhuan_v3.1"
+#define TTS_MODEL_FLASH        "qwen-audio-3.1-tts-flash"
+#define TTS_MODEL_FLASH_OLD   "qwen-audio-3.1-tts-plus"  // 旧固件存的名字，读设置时自动迁移
+#define TTS_FLASH_HOST_SUFFIX  ".cn-beijing.maas.aliyuncs.com"
+#define TTS_FLASH_PATH         "/api/v1/services/audio/tts/SpeechSynthesizer"
+#define TTS_VOICE_FLASH        "longanhuan_v3.1"
 // 参考价（元/万字符，仅用于串口/设置里估算花费）；Edge 朗读免费
-#define TTS_PRICE_PLUS        1.44f
+#define TTS_PRICE_FLASH        1.44f
 #define TTS_RATE      24000         // 流式 PCM 采样率（两个模型都按 24k 要）
 #define TTS_MAX_CHARS 48            // 一次合成最多多少字（短句才能多句预读，句子之间才不卡）
 #define TTS_MIN_CHARS 2             // 一句至少多少字，再短就接到下一行

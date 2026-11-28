@@ -63,8 +63,9 @@ void settingsLoad() {
   s.pfBlack = s_nvs.getUChar("pfB", s.pfBlack);
   s.pfWhite = s_nvs.getUChar("pfW", s.pfWhite);
   s.ttsModel = s_nvs.getString("ttsModel", s.ttsModel);
-  // 老固件存的是 qwen3-tts-flash，这个模型已经没了，统一当成 Edge 朗读
-  if (s.ttsModel != TTS_MODEL_EDGE && s.ttsModel != TTS_MODEL_PLUS) s.ttsModel = TTS_MODEL_EDGE;
+  // 旧固件存的是 qwen-audio-3.1-tts-plus，自动迁移到 flash；其它不认识的值统一当 Edge
+  if (s.ttsModel == TTS_MODEL_FLASH_OLD) s.ttsModel = TTS_MODEL_FLASH;
+  else if (s.ttsModel != TTS_MODEL_EDGE && s.ttsModel != TTS_MODEL_FLASH) s.ttsModel = TTS_MODEL_EDGE;
   s.ttsWs = s_nvs.getString("ttsWs", s.ttsWs);
   s.ttsKey = s_nvs.getString("ttsKey", s.ttsKey);
   s.ttsVoice = s_nvs.getString("ttsVoice", s.ttsVoice);
