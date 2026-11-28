@@ -80,72 +80,230 @@ static String baseName(String n) {
 
 // =====================================================================
 static const char INDEX_HTML[] = R"HTML(<!doctype html><html lang="zh"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>墨水屏阅读器</title>
-<style>:root{--ink:#222;--sub:#777;--line:#e2e0da;--paper:#f7f6f2}
-body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;max-width:640px;margin:0 auto;padding:22px 16px 48px;color:var(--ink);background:var(--paper)}
-h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:26px 0 10px}.sub{color:var(--sub);font-size:14px;line-height:1.6}
-.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:6px 16px 14px}
-ul{list-style:none;margin:0;padding:0}li{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #eee}
-.n{flex:1;word-break:break-all}.s{color:var(--sub);font-size:13px;white-space:nowrap}
-.btn{display:inline-block;font-size:15px;padding:8px 14px;border-radius:8px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer}
-.del{font-size:13px;padding:4px 10px;border-radius:7px;border:1px solid #c44;background:#fff;color:#c44;cursor:pointer}
-.drop{border:2px dashed #ccc;border-radius:10px;padding:18px;text-align:center;color:var(--sub);margin-top:12px;font-size:14px}
-.drop.on{border-color:var(--ink);color:var(--ink)}progress{width:100%;height:10px;margin-top:8px}</style></head><body>
-<h1>墨水屏阅读器</h1><div class=sub id=info>…</div>
-<h2>书（TXT / EPUB）</h2><div class=card><ul id=books><li class=sub>…</li></ul>
-<div class=drop id=dropB>把书拖到这里，或 <label class=btn>选择文件<input type=file id=fB multiple accept=".txt,.epub" hidden></label></div></div>
-<h2>字库（.efnt）</h2><div class=card><ul id=fonts><li class=sub>…</li></ul>
-<div class=drop id=dropF>把字库拖到这里，或 <label class=btn>选择文件<input type=file id=fF multiple accept=".efnt" hidden></label></div></div>
-<h2>语音朗读</h2><div class=card><p class=sub><b>Edge 朗读</b> 免费，不用填 Key；设备时间要对（开机自动联网对时）。<br><b>qwen-audio-3.1-tts-plus</b> 是阿里云百炼的专业模型：要 API Key（sk- 开头）和业务空间 ID（百炼控制台右上角图标里复制），约 1.44 元/万字符、有免费额度。</p>
-<div style="display:flex;gap:8px;margin-bottom:8px"><input id=ttsKey type=password placeholder="sk-...（只有 plus 用）" autocomplete=off style="flex:1;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
-<button class=btn id=ttsSave>保存 Key</button></div>
-<div style="display:flex;gap:8px;align-items:center"><select id=ttsModel style="flex:1;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
-<option value="edge">Edge 朗读（免费）</option>
-<option value="qwen-audio-3.1-tts-plus">qwen-audio-3.1-tts-plus（约 1.44 元/万字符）</option></select>
-<button class=btn id=ttsSaveModel>保存模型</button></div>
-<input id=ttsWs placeholder="业务空间 ID（plus 用）" style="width:100%;box-sizing:border-box;margin-top:8px;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
-<div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id=ttsSpeed type=number step=0.05 min=0.5 max=2 placeholder="语速（0.5～2）" style="flex:1;padding:9px;border:1px solid #ccc;border-radius:8px;font-size:15px">
-<button class=btn id=ttsSaveSpeed>保存语速</button></div>
-<p class=sub id=ttsSt>…</p></div>
-<h2>固件升级</h2><div class=card><p class=sub>选 firmware.bin（电脑上 app/.pio/build/pcb1/ 里）。传完设备自动重启，书、进度和设置都不会丢；传坏了也还是原来的固件。</p>
-<label class=btn>选择 firmware.bin<input type=file id=fW accept=".bin" hidden></label></div>
-<p id=st class=sub style="margin-top:18px"></p><progress id=pg value=0 max=1 hidden></progress>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>墨芯 · 无线传输</title>
+<style>
+:root{--bg:#f6f4ee;--card:#fff;--ink:#1b1b1b;--muted:#6f6a60;--line:#e4dfd3;--accent:#2f6f4f;--accent-ink:#fff;--danger:#b03a2e;--track:#ece8dd;--shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px rgba(0,0,0,.05)}
+@media (prefers-color-scheme:dark){:root{--bg:#141412;--card:#1c1c19;--ink:#ece9e1;--muted:#9a948a;--line:#2c2b26;--accent:#6fbf92;--accent-ink:#10231a;--danger:#e07a6a;--track:#262520;--shadow:none}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;-webkit-font-smoothing:antialiased}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:var(--track);padding:1px 5px;border-radius:5px}
+.wrap{max-width:1080px;margin:0 auto;padding:28px 20px 52px}
+header.top{display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.mark{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-size:22px;font-weight:600;box-shadow:var(--shadow);flex:none}
+h1{font-size:20px;margin:0;letter-spacing:.3px}
+.tag{margin:2px 0 0;color:var(--muted);font-size:13px}
+.pill{margin-left:auto;display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:13px;color:var(--muted);white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:#c9a227;flex:none}
+.pill.ok i{background:var(--accent)}
+.pill.bad i{background:var(--danger)}
+.grid{display:grid;grid-template-columns:1.12fr .88fr;gap:18px;align-items:start}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow)}
+.head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.head h2{font-size:14px;margin:0;font-weight:600}
+.count{font-size:12px;color:var(--muted);background:var(--track);border-radius:999px;padding:1px 8px;min-width:22px;text-align:center}
+.ghost{margin-left:auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:9px;padding:4px 10px;font-size:12px;cursor:pointer}
+.ghost:hover{color:var(--ink);border-color:var(--muted)}
+.covers{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px;margin-bottom:14px}
+.book{perspective:900px}
+.cover{position:relative;aspect-ratio:3/4.35;border-radius:3px 8px 8px 3px;background:linear-gradient(100deg,color-mix(in srgb,var(--track) 72%,var(--card)) 0%,var(--card) 20%,var(--card) 86%,color-mix(in srgb,var(--track) 52%,var(--card)) 100%);border:1px solid color-mix(in srgb,var(--line) 75%,var(--card));box-shadow:0 2px 3px rgba(0,0,0,.14),0 10px 18px -6px rgba(0,0,0,.18);transform:rotateY(-7deg);transition:transform .18s ease,box-shadow .18s ease;display:flex;align-items:center;justify-content:center;padding:14px 12px 28px 19px;overflow:hidden}
+.book:hover .cover{transform:rotateY(-2deg) translateY(-3px);box-shadow:0 4px 6px rgba(0,0,0,.16),0 18px 28px -8px rgba(0,0,0,.24)}
+.cover::before{content:"";position:absolute;left:0;top:0;bottom:0;width:9px;background:linear-gradient(90deg,color-mix(in srgb,var(--line) 90%,var(--card)) 0 55%,transparent 100%);box-shadow:inset -1px 0 0 color-mix(in srgb,var(--line) 65%,transparent)}
+.cover::after{content:"";position:absolute;right:1px;top:8px;bottom:8px;width:3px;background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--line) 78%,var(--card)) 0 1px,transparent 1px 3px);opacity:.85}
+.cover .t{position:relative;z-index:1;font-size:12.5px;line-height:1.45;text-align:center;word-break:break-word;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.cover .m{position:absolute;z-index:1;left:0;right:0;bottom:8px;text-align:center;font-size:11px;color:var(--muted)}
+.cover .x{position:absolute;z-index:2;top:3px;right:4px;border:0;background:transparent;color:var(--muted);font-size:15px;line-height:1;cursor:pointer;opacity:.35;padding:2px 4px}
+.cover:hover .x{opacity:1;color:var(--danger)}
+.rows{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:8px}
+.rows li{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:12px;background:var(--card)}
+.rows li:hover{background:color-mix(in srgb,var(--track) 55%,transparent)}
+.badge{width:38px;height:38px;border-radius:10px;flex:none;display:grid;place-items:center;font-size:10.5px;font-weight:700;letter-spacing:.4px;background:var(--track);color:var(--muted)}
+.badge.epub{background:color-mix(in srgb,#7a5cc0 18%,var(--track));color:#7a5cc0}
+.badge.efnt{background:color-mix(in srgb,#b07d2a 20%,var(--track));color:#a5761f}
+.main{flex:1;min-width:0}
+.name{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.meta{font-size:12px;color:var(--muted)}
+.del{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;padding:3px 9px;font-size:12px;cursor:pointer}
+.del:hover{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--line))}
+.drop{border:1.5px dashed #cfc7b6;border-radius:14px;padding:16px;text-align:center;color:var(--muted);font-size:13px;transition:.15s}
+.drop.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:14px;cursor:pointer;user-select:none}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.05)}
+.upload{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.upRow{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.upName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.bar{width:120px;height:6px;background:var(--track);border-radius:3px;overflow:hidden;flex:none}
+.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:3px;transition:width .2s}
+.upPct{width:38px;text-align:right;font-variant-numeric:tabular-nums}
+.field{display:block;font-size:13px;color:var(--muted);margin-bottom:10px}
+.field input,.field select{display:block;width:100%;margin-top:4px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:15px;font-family:inherit}
+.field input:focus,.field select:focus{outline:none;border-color:var(--accent)}
+.actions{display:flex;align-items:center;gap:12px;margin:4px 0 10px}
+.note{color:var(--muted);font-size:12.5px;line-height:1.6;margin:6px 0}
+.msg{font-size:12.5px;color:var(--accent)}
+.msg.bad{color:var(--danger)}
+footer{margin-top:24px;text-align:center;color:var(--muted);font-size:12px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}.pill{margin-left:0}}
+</style></head><body>
+<div class="wrap">
+<header class="top">
+<div class="brand"><div class="mark">墨</div><div><h1>墨芯 · 无线传输</h1><p class="tag">同一 Wi-Fi，拖拽传书</p></div></div>
+<div class="pill" id="pill"><i></i><span id="infoText">读取设备…</span></div>
+</header>
+<div class="grid">
+<div class="col">
+<section class="card">
+<div class="head"><h2>书</h2><span class="count" id="bookCount">0</span><button class="ghost" id="refresh">刷新</button></div>
+<div class="covers" id="books"></div>
+<div class="drop" id="dropBooks">把 TXT / EPUB 拖到这里，或 <label class="btn">选择文件<input id="fB" type="file" multiple accept=".txt,.epub" hidden></label></div>
+<div class="upload" id="upBooks"></div>
+</section>
+<section class="card">
+<div class="head"><h2>字库</h2><span class="count" id="fontCount">0</span></div>
+<ul class="rows" id="fonts"></ul>
+<div class="drop" id="dropFonts">把 .efnt 拖到这里，或 <label class="btn">选择文件<input id="fF" type="file" accept=".efnt" hidden></label></div>
+<div class="upload" id="upFonts"></div>
+</section>
+</div>
+<div class="col">
+<section class="card">
+<div class="head"><h2>朗读设置</h2><span class="tag" id="ttsVoice" style="margin-left:auto"></span></div>
+<label class="field">模型<select id="ttsModel"><option value="edge">Edge 朗读（免费）</option><option value="qwen-audio-3.1-tts-plus">qwen-audio-3.1-tts-plus（付费）</option></select></label>
+<label class="field">API Key（只有 plus 用）<input id="ttsKey" type="password" placeholder="sk-..." autocomplete="off"></label>
+<label class="field">业务空间 ID（只有 plus 用）<input id="ttsWs" placeholder="百炼控制台右上角复制"></label>
+<label class="field">语速（0.5～2.0）<input id="ttsSpeed" type="number" step="0.05" min="0.5" max="2"></label>
+<div class="actions"><button class="btn primary" id="ttsSave">保存</button><span class="msg" id="ttsMsg"></span></div>
+<p class="note">Edge 免费，但要设备时间准确（开机自动联网对时）；plus 走阿里云百炼，按字符计费。</p>
+</section>
+<section class="card">
+<div class="head"><h2>固件升级</h2></div>
+<p class="note">选 firmware.bin。传完设备自动重启，书、进度和设置都不会丢；传坏了仍留在旧固件。</p>
+<label class="btn primary">选择固件<input id="fW" type="file" accept=".bin" hidden></label>
+<div class="upload" id="upFw"></div>
+</section>
+</div>
+</div>
+<footer>墨芯阅读器 · 同一局域网 · 传完自动刷新</footer>
+</div>
 <script>
 const $=id=>document.getElementById(id);
-const mb=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
-function list(dir,el){fetch('/api/list?dir='+dir).then(r=>r.json()).then(j=>{el.innerHTML='';
- if(!j.files.length){el.innerHTML='<li class=sub>（空）</li>';return}
- j.files.forEach(f=>{const li=document.createElement('li');li.innerHTML='<span class=n></span><span class=s>'+mb(f.s)+'</span><button class=del>删除</button>';
-  li.querySelector('.n').textContent=f.n;li.querySelector('.del').onclick=()=>{if(confirm('删除 '+f.n+'？'))
-  fetch('/api/delete?path='+encodeURIComponent(dir+'/'+f.n),{method:'POST'}).then(refresh)};el.appendChild(li)})})}
-function refresh(){list('/books',$('books'));list('/fonts',$('fonts'));
- fetch('/api/info').then(r=>r.json()).then(j=>{$('info').textContent='固件 '+j.fw+' · 电量 '+j.bat+(j.usb?'（插着电）':'')+' · TF 卡剩 '+j.free})}
-function up(url,files,i){if(i>=files.length){$('pg').hidden=true;refresh();return}
- const f=files[i],x=new XMLHttpRequest(),fd=new FormData();fd.append('f',f,f.name);x.open('POST',url);$('pg').hidden=false;
- x.upload.onprogress=e=>{$('pg').value=e.loaded/e.total;$('st').textContent='上传 '+f.name+'（'+(i+1)+'/'+files.length+'）'+Math.round(100*e.loaded/e.total)+'%'};
- x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}$('st').textContent=(j.ok?'✓ ':'✗ ')+(j.msg||('出错 '+x.status));up(url,files,i+1)};
- x.onerror=()=>{$('pg').hidden=true;$('st').textContent='✗ '+f.name+' 没传完（设备断开了？）'};x.send(fd)}
-$('fB').onchange=e=>up('/upload?dir=/books',[...e.target.files],0);
-$('fF').onchange=e=>up('/upload?dir=/fonts',[...e.target.files],0);
-$('fW').onchange=e=>{const f=e.target.files[0];if(f&&confirm('用 '+f.name+' 升级固件？传完设备会重启'))up('/fw',[f],0)};
-function ttsInfo(){fetch('/api/tts').then(r=>r.json()).then(j=>{
- $('ttsSt').textContent=(j.key?('Key 已设置（…'+j.tail+'）'):'Key 未设置')+' · 模型 '+j.model+' · 音色 '+j.voice+' · 语速 '+j.speed+' 倍 · 音量 '+j.vol+'%';
- if(j.model)$('ttsModel').value=j.model; $('ttsWs').value=j.ws||''; $('ttsSpeed').value=j.speed;});}
-$('ttsSave').onclick=()=>{const k=$('ttsKey').value.trim();if(!k)return;
- fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'key='+encodeURIComponent(k)})
-  .then(r=>r.json()).then(j=>{$('ttsSt').textContent=j.msg;if(j.ok)$('ttsKey').value='';ttsInfo()});};
-$('ttsSaveModel').onclick=()=>{
- fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-  body:'model='+encodeURIComponent($('ttsModel').value)+'&ws='+encodeURIComponent($('ttsWs').value.trim())})
-  .then(r=>r.json()).then(j=>{$('ttsSt').textContent=j.msg;ttsInfo()});};
-$('ttsSaveSpeed').onclick=()=>{
- fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-  body:'speed='+encodeURIComponent($('ttsSpeed').value.trim())})
-  .then(r=>r.json()).then(j=>{$('ttsSt').textContent=j.msg;ttsInfo()});};
-ttsInfo();
-function drop(el,url,ex){el.ondragover=e=>{e.preventDefault();el.classList.add('on')};el.ondragleave=()=>el.classList.remove('on');
- el.ondrop=e=>{e.preventDefault();el.classList.remove('on');up(url,[...e.dataTransfer.files].filter(f=>ex.some(x=>f.name.toLowerCase().endsWith(x))),0)}}
-drop($('dropB'),'/upload?dir=/books',['.txt','.epub']);drop($('dropF'),'/upload?dir=/fonts',['.efnt']);refresh();
+const fmt=b=>b>=1048576?(b/1048576).toFixed(1)+' MB':b>=1024?(b/1024).toFixed(0)+' KB':b+' B';
+const extOf=n=>(n.split('.').pop()||'').toLowerCase();
+function badge(ext){const d=document.createElement('div');d.className='badge '+(ext==='epub'?'epub':ext==='efnt'?'efnt':'');d.textContent=(ext||'?').toUpperCase();return d}
+
+function info(){fetch('/api/info').then(r=>r.json()).then(j=>{
+  $('infoText').textContent='固件 '+j.fw+' · 电量 '+j.bat+(j.usb?'（插电）':'')+' · TF 剩 '+j.free;
+  $('pill').className='pill ok';
+}).catch(()=>{$('infoText').textContent='设备没响应';$('pill').className='pill bad'})}
+
+function cover(it){
+  const wrap=document.createElement('div');wrap.className='book';
+  const c=document.createElement('div');c.className='cover';
+  const t=document.createElement('div');t.className='t';t.textContent=it.n.replace(/\.(txt|epub)$/i,'');
+  const m=document.createElement('div');m.className='m';m.textContent=fmt(it.s);
+  const x=document.createElement('button');x.className='x';x.textContent='×';x.title='删除';
+  x.onclick=()=>{if(!confirm('删除 '+it.n+'？'))return;fetch('/api/delete?path='+encodeURIComponent('/books/'+it.n),{method:'POST'}).then(()=>{books();info()})};
+  c.append(t,m,x);wrap.append(c);return wrap;
+}
+function books(){fetch('/api/list?dir=/books').then(r=>r.json()).then(j=>{
+  const el=$('books');el.innerHTML='';$('bookCount').textContent=j.files.length;
+  if(!j.files.length){el.innerHTML='<div class="note" style="grid-column:1/-1">还没有书</div>';return}
+  j.files.forEach(f=>el.append(cover(f)));
+})}
+function fonts(){fetch('/api/list?dir=/fonts').then(r=>r.json()).then(j=>{
+  const el=$('fonts');el.innerHTML='';$('fontCount').textContent=j.files.length;
+  if(!j.files.length){el.innerHTML='<li class="note">还没有字库</li>';return}
+  j.files.forEach(f=>{const li=document.createElement('li');li.append(badge('efnt'));
+    const m=document.createElement('div');m.className='main';
+    const n=document.createElement('div');n.className='name';n.textContent=f.n;
+    const s=document.createElement('div');s.className='meta';s.textContent=fmt(f.s);m.append(n,s);
+    const d=document.createElement('button');d.className='del';d.textContent='删除';
+    d.onclick=()=>{if(!confirm('删除 '+f.n+'？'))return;fetch('/api/delete?path='+encodeURIComponent('/fonts/'+f.n),{method:'POST'}).then(()=>{fonts();info()})};
+    li.append(m,d);el.append(li)});
+})}
+
+function upRow(container,name){const row=document.createElement('div');row.className='upRow';
+  const n=document.createElement('span');n.className='upName';n.textContent=name;
+  const bar=document.createElement('span');bar.className='bar';const fill=document.createElement('i');bar.append(fill);
+  const pct=document.createElement('span');pct.className='upPct';pct.textContent='0%';
+  row.append(n,bar,pct);container.prepend(row);return{row,fill,pct}}
+
+function upload(files,dir,container,after){
+  const list=[...files];if(!list.length)return;
+  let i=0;
+  const next=()=>{
+    if(i>=list.length){after&&after();return}
+    const f=list[i++],ui=upRow(container,f.name);
+    const x=new XMLHttpRequest();x.open('POST','/upload?dir='+encodeURIComponent(dir));
+    const fd=new FormData();fd.append('f',f,f.name);
+    x.upload.onprogress=e=>{if(e.lengthComputable){const p=Math.round(100*e.loaded/e.total);ui.fill.style.width=p+'%';ui.pct.textContent=p+'%'}};
+    x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}
+      ui.fill.style.width='100%';ui.pct.textContent=j.ok?'完成':'失败';
+      if(!j.ok){ui.pct.style.color='var(--danger)';ui.pct.style.width='auto'}
+      setTimeout(()=>{ui.row.remove();next()},j.ok?350:1400)};
+    x.onerror=()=>{ui.pct.textContent='断开';ui.pct.style.color='var(--danger)';setTimeout(()=>{ui.row.remove();next()},1200)};
+    x.send(fd);
+  };
+  next();
+}
+
+$('fB').onchange=e=>{upload(e.target.files,'/books','upBooks',()=>{books();info()});e.target.value=''};
+$('fF').onchange=e=>{upload(e.target.files,'/fonts','upFonts',()=>{fonts();info()});e.target.value=''};
+$('fW').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  if(!confirm('用 '+f.name+' 升级固件？传完设备会重启')){e.target.value='';return}
+  const ui=upRow($('upFw'),f.name);
+  const x=new XMLHttpRequest();x.open('POST','/fw');
+  const fd=new FormData();fd.append('f',f,f.name);
+  x.upload.onprogress=ev=>{if(ev.lengthComputable){const p=Math.round(100*ev.loaded/ev.total);ui.fill.style.width=p+'%';ui.pct.textContent=p+'%'}};
+  x.onload=()=>{let j={};try{j=JSON.parse(x.responseText)}catch(e){}
+    ui.pct.textContent=j.ok?'升级中…':'失败';if(!j.ok)ui.pct.style.color='var(--danger)'};
+  x.onerror=()=>{ui.pct.textContent='断开'};
+  x.send(fd);e.target.value='';
+};
+
+function tts(){fetch('/api/tts').then(r=>r.json()).then(j=>{
+  $('ttsModel').value=j.model;$('ttsWs').value=j.ws||'';$('ttsSpeed').value=j.speed;
+  $('ttsKey').placeholder=j.key?'已设置（…'+j.tail+'），留空不改':'sk-...';
+  $('ttsVoice').textContent=j.voice||'';
+})}
+$('ttsSave').onclick=()=>{
+  const body=new URLSearchParams();
+  body.set('model',$('ttsModel').value);
+  const k=$('ttsKey').value.trim();if(k)body.set('key',k);
+  body.set('ws',$('ttsWs').value.trim());
+  body.set('speed',$('ttsSpeed').value);
+  fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(r=>r.json()).then(j=>{
+    const m=$('ttsMsg');m.textContent=j.msg||'';m.className='msg '+(j.ok?'':'bad');tts();
+  });
+};
+
+function bindDrop(el,dir,container,after){
+  el.ondragover=e=>{e.preventDefault();el.classList.add('on')};
+  el.ondragleave=()=>el.classList.remove('on');
+  el.ondrop=e=>{e.preventDefault();el.classList.remove('on');
+    const fs=[...e.dataTransfer.files].filter(f=>dir==='/fonts'?/\.efnt$/i.test(f.name):/\.(txt|epub)$/i.test(f.name));
+    upload(fs,dir,container,after)};
+}
+bindDrop($('dropBooks'),'/books','upBooks',()=>{books();info()});
+bindDrop($('dropFonts'),'/fonts','upFonts',()=>{fonts();info()});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  const fs=[...e.dataTransfer.files];if(!fs.length)return;
+  const bin=fs.find(f=>/\.bin$/i.test(f.name));
+  if(bin){$('fW').files=e.dataTransfer.files;$('fW').onchange({target:$('fW')});return}
+  const fonts=fs.filter(f=>/\.efnt$/i.test(f.name));
+  const books=fs.filter(f=>/\.(txt|epub)$/i.test(f.name));
+  if(books.length)upload(books,'/books','upBooks',()=>{books();info()});
+  if(fonts.length)upload(fonts,'/fonts','upFonts',()=>{fonts();info()});
+});
+$('refresh').onclick=()=>{books();fonts();info()};
+info();books();fonts();tts();
 </script></body></html>)HTML";
 
 static void listDir(const String &dir, const String &prefix, String &out, int depth) {
